@@ -135,6 +135,7 @@ void InitializeProgram()
 
 void InitializeBuffers()
 {
+
 	// VAO
 	glGenVertexArrays(1, &vao);
 
