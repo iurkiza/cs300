@@ -8,99 +8,13 @@
 #include <SDL2/SDL.h>
 #include "Parser/CS300Parser.h"
 #include "OGLDebug.h"
+#include "ShaderUtils.h"
 
 #include "Vertex.h"
 
 static int     winID;
 static GLsizei WIDTH = 1280;
 static GLsizei HEIGHT = 720;
-
-GLuint CreateShader(GLenum eShaderType, const std::string& strShaderFile)
-{
-	GLuint       shader = glCreateShader(eShaderType);
-	const char* strFileData = strShaderFile.c_str();
-	glShaderSource(shader, 1, &strFileData, NULL);
-
-	glCompileShader(shader);
-
-	GLint status;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-	if (status == GL_FALSE)
-	{
-		GLint infoLogLength;
-		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
-
-		GLchar* strInfoLog = new GLchar[infoLogLength + 1];
-		glGetShaderInfoLog(shader, infoLogLength, NULL, strInfoLog);
-
-		const char* strShaderType = NULL;
-		switch (eShaderType)
-		{
-		case GL_VERTEX_SHADER:
-			strShaderType = "vertex";
-			break;
-		case GL_GEOMETRY_SHADER:
-			strShaderType = "geometry";
-			break;
-		case GL_FRAGMENT_SHADER:
-			strShaderType = "fragment";
-			break;
-		}
-
-		fprintf(stderr, "Compile failure in %s shader:\n%s\n", strShaderType, strInfoLog);
-		delete[] strInfoLog;
-	}
-
-	return shader;
-}
-
-GLuint CreateProgram(const std::vector<GLuint>& shaderList)
-{
-	GLuint program = glCreateProgram();
-
-	for (size_t iLoop = 0; iLoop < shaderList.size(); iLoop++)
-		glAttachShader(program, shaderList[iLoop]);
-
-	glLinkProgram(program);
-
-	GLint status;
-	glGetProgramiv(program, GL_LINK_STATUS, &status);
-	if (status == GL_FALSE)
-	{
-		GLint infoLogLength;
-		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLength);
-
-		GLchar* strInfoLog = new GLchar[infoLogLength + 1];
-		glGetProgramInfoLog(program, infoLogLength, NULL, strInfoLog);
-		fprintf(stderr, "Linker failure: %s\n", strInfoLog);
-		delete[] strInfoLog;
-	}
-
-	for (size_t iLoop = 0; iLoop < shaderList.size(); iLoop++)
-		glDetachShader(program, shaderList[iLoop]);
-
-	return program;
-}
-
-const std::string strVertexShader(
-	"#version 400\n"
-	"layout(location = 0) in vec4 aPosition;\n"
-	"layout(location = 1) in vec3 aColor;\n"
-	"out vec3 color;\n"
-	"void main()\n"
-	"{\n"
-	"   gl_Position = aPosition;\n"
-	"   color = aColor;\n"
-	"}\n");
-
-const std::string strFragmentShader(
-	"#version 400\n"
-	"in vec3 color;\n"
-	"out vec4 outputColor;\n"
-	"void main()\n"
-	"{\n"
-	"   outputColor = vec4(color, 1.0f);\n"
-	"}\n");
 
 struct Vertex
 {
@@ -122,19 +36,16 @@ namespace
 
 void InitializeProgram()
 {
-	std::vector<GLuint> shaderList;
+	theProgram = ShaderUtils::CreateShaderProgram("data//vertshader.vert", "data//fragShader.frag");
 
-	shaderList.push_back(CreateShader(GL_VERTEX_SHADER, strVertexShader));
-	shaderList.push_back(CreateShader(GL_FRAGMENT_SHADER, strFragmentShader));
-
-	theProgram = CreateProgram(shaderList);
-
-	std::for_each(shaderList.begin(), shaderList.end(), glDeleteShader);
 }
 
 
 void InitializeBuffers()
 {
+	std::vector<MyVertex> cube = CreateCylinder(20);
+
+	glDisable(GL_CULL_FACE);
 
 	// VAO
 	glGenVertexArrays(1, &vao);
@@ -144,14 +55,17 @@ void InitializeBuffers()
 
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * cube.size(), cube.data(), GL_STATIC_DRAW);
 
 	// Insert the VBO into the VAO
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(MyVertex), 0);
 
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void*>(offsetof(Vertex, color)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
 
 	// Unbind
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -176,8 +90,10 @@ void display(SDL_Window* window)
 	glUseProgram(theProgram);
 	glBindVertexArray(vao);
 
+	std::vector<MyVertex> cube = CreateCylinder(20);
+
 	// Draw
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDrawArrays(GL_TRIANGLES, 0, cube.size());
 
 	// Unbind
 	glBindVertexArray(0);
@@ -196,29 +112,11 @@ void cleanup()
 	glDeleteVertexArrays(1, &vao);
 }
 
-std::vector<vertex::Vertex> CreateCube()
-{
-	std::vector<vertex::Vertex> cube;
-
-	vertex::Vertex newVert;
-
-	newVert.Position = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
-	newVert.UV = glm::vec2(0.0f, 0.0f);
-	newVert.Normal = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-
-
-	cube.push_back(newVert);
-
-	return cube;
-}
-
 #undef main
 int main(int argc, char* args[])
 {
 
-	std::vector<vertex::Vertex> cube = CreateCube();
-
-
+	std::vector<MyVertex> cube = CreatePlane();
 
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -294,7 +192,7 @@ int main(int argc, char* args[])
 	//get the camera data
 	Camera camera;
 	camera.GetCameraValues(parser);
-
+	
 	
 	SDL_Event event;
 	bool      quit = false;
