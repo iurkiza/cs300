@@ -1,5 +1,8 @@
 #include "Vertex.h"
 #include "glm/gtc/matrix_transform.hpp"
+#include <math.h>
+#include <iostream>
+#include "tiny_obj_loader.h"
 
 float     Camera::fovy;
 float     Camera::width;
@@ -9,15 +12,162 @@ float     Camera::farPlane;
 glm::vec3 Camera::camPos;
 glm::vec3 Camera::camTarget;
 glm::vec3 Camera::camUp;
+float	  Camera::r;
+float	  Camera::theta;
+float	  Camera::phi;
+int       Camera::slices;
 
-
-void LoadObjects(CS300Parser parser)
+void Mesh::InitializeBuffers()
 {
-	for (int i = 0; i <= parser.objects.size(); i++)
+	// VAO
+	glGenVertexArrays(1, &VAO);
+
+	// VBO
+	glGenBuffers(1, &VBO);
+
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * mesh.size(), mesh.data(), GL_STATIC_DRAW);
+
+	// Insert the VBO into the VAO
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(MyVertex), 0);
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	///////////////////////////////////////////////////////
+	// VAO
+	glGenVertexArrays(1, &NormalVAO);
+
+	// VBO
+	glGenBuffers(1, &NormalVBO);
+
+	glBindVertexArray(NormalVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, NormalVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * Normals.size(), Normals.data(), GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	return;
+}
+
+void SceneObjs::ReoadMeshes()
+{
+	int Slices = Camera::slices;
+
+	if (Slices < 4)
 	{
+		return;
+	}
 
+	for (int i = 0; i < objects.size() - 1; i++)
+	{
+		if (objects[i].transform.mesh == "CONE")
+		{
+			objects[i].mesh = CreateCone(Slices);
+			objects[i].Normals = GetNormalVec(objects[i]);
+			objects[i].InitializeBuffers();
+		}
+		else if (objects[i].transform.mesh == "CYLINDER")
+		{
+			objects[i].mesh = CreateCylinder(Slices);
+			objects[i].Normals = GetNormalVec(objects[i]);
+			objects[i].InitializeBuffers();
+		}
+		else if (objects[i].transform.mesh == "SPHERE")
+		{
+			objects[i].mesh = CreateSphere(Slices);
+			objects[i].Normals = GetNormalVec(objects[i]);
+			objects[i].InitializeBuffers();
+		}
+	
+	}
+	
+}
 
+void SceneObjs::LoadObjects(CS300Parser parser)
+{
+	for (int i = 0; i < parser.objects.size(); i++)
+	{
+		Mesh newobj;
 
+		newobj.transform.mesh = parser.objects[i].mesh;
+		newobj.transform.name = parser.objects[i].name;
+		newobj.transform.pos = parser.objects[i].pos;
+		newobj.transform.rot = parser.objects[i].rot;
+		newobj.transform.sca = parser.objects[i].sca;
+
+		if (newobj.transform.mesh == "PLANE")
+		{
+			newobj.mesh = CreatePlane();
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "CUBE")
+		{
+			newobj.mesh = CreateCube();
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "CONE")
+		{
+			newobj.mesh = CreateCone(Camera::slices);
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "CYLINDER")
+		{
+			newobj.mesh = CreateCylinder(Camera::slices);
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "SPHERE")
+		{
+			newobj.mesh = CreateSphere(Camera::slices);
+		}
+		if (newobj.transform.mesh == "data/meshes/plane.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/plane.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "data/meshes/cube_face.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/cube_face.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "data/meshes/cone_20_face.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/cone_20_face.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "data/meshes/cylinder_20_face.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/cylinder_20_face.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "data/meshes/sphere_20_face.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/sphere_20_face.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+		else if (newobj.transform.mesh == "data/meshes/suzanne.obj")
+		{
+			newobj.mesh = LoadTinyObj("data/meshes/suzanne.obj");
+			newobj.Normals = GetNormalVec(newobj);
+		}
+
+		newobj.InitializeBuffers();
+
+		newobj.handle = i;
+
+		objects.push_back(newobj);
 
 	}
 
@@ -49,8 +199,17 @@ void Camera::GetCameraValues(CS300Parser parser)
 	farPlane = parser.farPlane;
 	camPos = parser.camPos;
 	camTarget = parser.camTarget;
-	camUp = camUp;
+	camUp = parser.camUp;
 
+	slices = 4;
+
+	glm::vec3 dist(camPos.x - camTarget.x, camPos.y - camTarget.y, camPos.z - camTarget.z);
+
+	r = glm::sqrt((dist.x * dist.x) + (dist.y * dist.y) + (dist.z * dist.z));
+	theta = glm::pi<float>() / 2;
+	phi = 0;
+
+	return;
 }
 
 glm::vec3 ComputeNormal(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3)
@@ -194,7 +353,7 @@ std::vector<MyVertex> CreateCube()
 		MyVertex newVert23(pos8, UV4, nor6);
 		cube.push_back(newVert23);
 
-		MyVertex newVert24(pos3, UV2, nor6);
+		MyVertex newVert24(pos7, UV2, nor6);
 		cube.push_back(newVert24);
 
 		MyVertex newVert25(pos5, UV1, nor4);
@@ -278,15 +437,27 @@ std::vector<MyVertex> CreatePlane()
 
 }
 
+void CalculateCamPosition()
+{
+	Camera::camPos.x = Camera::r * sin(Camera::theta) * sin(Camera::phi);
+	Camera::camPos.y = Camera::r * cos(Camera::theta);
+	Camera::camPos.z = Camera::r * sin(Camera::theta) * cos(Camera::phi);
+
+	Camera::camPos += Camera::camTarget;
+
+	return;
+
+}
+
 std::vector<MyVertex> CreateCone(int slices)
 {
 	std::vector<MyVertex> cone;
 
-	glm::vec4 top(0.0f, 0.0f, 0.5f, 1.0f);
+	glm::vec4 top(0.0f, 0.5f, 0.0f, 1.0f);
 
-	glm::vec4 bot(0.0f, 0.0f, -0.5f, 1.0f);
+	glm::vec4 bot(0.0f, -0.5f, 0.0f, 1.0f);
 
-	glm::vec4 prevpos(0.5f, 0.0f, -0.5f, 1.0f);
+	glm::vec4 prevpos(0.5f, -0.5f, 0.0f, 1.0f);
 
 	MyVertex Top;
 	MyVertex Bot;
@@ -300,37 +471,56 @@ std::vector<MyVertex> CreateCone(int slices)
 
 	float pi = 2.0f * glm::pi<float>();
 
-	for (float angle = pi / slices; angle <= pi + (pi / slices); angle += pi / slices)
+	float XstepUV = 1/ static_cast<float>(slices);
+	float actualUV = 0.0f;
+
+	for (float angle = pi / slices; angle <= pi + 0.05; angle += pi / slices)
 	{
 
-		NewV.Position = glm::vec4(cos(angle) * 0.5, sin(angle) * 0.5, -0.5f, 1.0f);
+		NewV.Position = glm::vec4(cos(angle) * 0.5,  -0.5f, sin(angle) * 0.5, 1.0f);
 
-		NewV.UV = glm::vec2(0.0f ,0.0f);
-		Top.UV = glm::vec2(0.0f, 0.0f);
-		Prev.UV = glm::vec2(0.0f, 0.0f);
+		NewV.UV = glm::vec2(actualUV + XstepUV ,0.0f);
+		Top.UV = glm::vec2(0.5f, 1.0f);
+		Prev.UV = glm::vec2(actualUV, 0.0f);
 
-		NewV.Normal = ComputeNormal(NewV.Position, Top.Position, Prev.Position);
-		Prev.Normal = ComputeNormal(Prev.Position, NewV.Position, Top.Position);
-		Top.Normal = ComputeNormal(Top.Position, Prev.Position, NewV.Position);
+		NewV.Normal = ComputeNormal(NewV.Position, Prev.Position,Top.Position );
+		Prev.Normal = ComputeNormal(Prev.Position, Top.Position,NewV.Position );
+		Top.Normal = ComputeNormal(Top.Position, NewV.Position,Prev.Position );
+
+		NewV.Normal = glm::normalize(NewV.Normal);
+		Prev.Normal = glm::normalize(Prev.Normal);
+		Top.Normal = glm::normalize(Top.Normal);
+		
 
 		MyVertex botPrev;
 		MyVertex botNew;
 		botPrev.Position = Prev.Position;
 		botNew.Position = NewV.Position;
 
-		botNew.Normal = ComputeNormal(botNew.Position, Bot.Position, botPrev.Position);
+		botNew.Normal =  ComputeNormal(botNew.Position, Bot.Position, botPrev.Position);
 		botPrev.Normal = ComputeNormal(botPrev.Position, botNew.Position, Bot.Position);
-		Bot.Normal = ComputeNormal(Bot.Position, botPrev.Position, botNew.Position);
+		Bot.Normal =     ComputeNormal(Bot.Position, botPrev.Position, botNew.Position);
+
+		botNew.Normal = glm::normalize(botNew.Normal);
+		botPrev.Normal = glm::normalize(botPrev.Normal);
+		Bot.Normal = glm::normalize(Bot.Normal);
+
+
+		Bot.UV = glm::vec2(0.5f, 0.0f);
+		botNew.UV = glm::vec2(actualUV + XstepUV, 0.0f);
+		botPrev.UV = glm::vec2(actualUV, 0.0f);
 
 		cone.push_back(Top);
-		cone.push_back(Prev);
 		cone.push_back(NewV);
+		cone.push_back(Prev);
 
 		cone.push_back(Bot);
 		cone.push_back(botPrev);
 		cone.push_back(botNew);
 
 		Prev = NewV;
+
+		actualUV += XstepUV;
 	}
 
 
@@ -341,11 +531,11 @@ std::vector<MyVertex> CreateCylinder(int slices)
 {
 	std::vector<MyVertex> cylinder;
 
-	glm::vec4 topCenter(0.0f, 0.0f, 0.5f, 1.0f);
-	glm::vec4 botCenter(0.0f, 0.0f, -0.5f, 1.0f);
+	glm::vec4 topCenter(0.0f, 0.5f, 0.0f, 1.0f);
+	glm::vec4 botCenter(0.0f, -0.5f, 0.0f, 1.0f);
 
-	glm::vec4 prevposBot(0.5f, 0.0f, -0.5f, 1.0f);
-	glm::vec4 prevposTop(0.5f, 0.0f, 0.5f, 1.0f);
+	glm::vec4 prevposBot(0.5f, -0.5f, 0.0f, 1.0f);
+	glm::vec4 prevposTop(0.5f, 0.5f, 0.0f, 1.0f);
 
 	MyVertex CenterTop;
 	MyVertex CenterBot;
@@ -361,26 +551,33 @@ std::vector<MyVertex> CreateCylinder(int slices)
 
 	float pi = 2.0f * glm::pi<float>();
 
-	for (float angle = pi / slices; angle <= pi + (pi / slices); angle += pi / slices)
-	{
-		NextBot.Position = glm::vec4(cos(angle) * 0.5, sin(angle) * 0.5, -0.5f, 1.0f);
-		NextTop.Position = glm::vec4(cos(angle) * 0.5, sin(angle) * 0.5, +0.5f, 1.0f);
+	float XstepUV = 1 / static_cast<float>(slices);
+	float actualUV = 0.0f;
 
-		CenterTop.UV = glm::vec2(0.0f, 0.0f);
-		CenterBot.UV = glm::vec2(0.0f, 0.0f);
-		PrevBot.UV = glm::vec2(0.0f, 0.0f);
-		PrevTop.UV = glm::vec2(0.0f, 0.0f);
-		NextBot.UV = glm::vec2(0.0f, 0.0f);
-		NextTop.UV = glm::vec2(0.0f, 0.0f);
+	for (float angle = pi / slices; angle <= pi +0.05; angle += pi / slices)
+	{
+		NextBot.Position = glm::vec4(cos(angle) * 0.5, -0.5f,sin(angle) * 0.5 , 1.0f);
+		NextTop.Position = glm::vec4(cos(angle) * 0.5, +0.5f,sin(angle) * 0.5 , 1.0f);
+
+		CenterTop.UV = glm::vec2(0.5f, 1.0f);
+		CenterBot.UV = glm::vec2(0.5f, 0.0f);
+		PrevBot.UV = glm::vec2(actualUV, 0.0f);
+		PrevTop.UV = glm::vec2(actualUV, 1.0f);
+		NextBot.UV = glm::vec2(actualUV + XstepUV, 0.0f);
+		NextTop.UV = glm::vec2(actualUV + XstepUV, 1.0f);
 
 		//top triangle
-		CenterTop.Normal = ComputeNormal(CenterTop.Position, PrevTop.Position, NextTop.Position);
-		PrevTop.Normal = ComputeNormal(PrevTop.Position, NextTop.Position, CenterTop.Position);
-		NextTop.Normal = ComputeNormal(NextTop.Position, CenterTop.Position, PrevTop.Position);
+		CenterTop.Normal = ComputeNormal(CenterTop.Position, NextTop.Position, PrevTop.Position );
+		PrevTop.Normal = ComputeNormal(PrevTop.Position, CenterTop.Position,NextTop.Position );
+		NextTop.Normal = ComputeNormal(NextTop.Position, PrevTop.Position,CenterTop.Position );
+
+		CenterTop.Normal = glm::normalize(CenterTop.Normal);
+		PrevTop.Normal = glm::normalize(PrevTop.Normal);
+		NextTop.Normal = glm::normalize(NextTop.Normal);
 
 		cylinder.push_back(CenterTop);
-		cylinder.push_back(PrevTop);
 		cylinder.push_back(NextTop);
+		cylinder.push_back(PrevTop);
 
 		//bot Triangle
 
@@ -388,34 +585,48 @@ std::vector<MyVertex> CreateCylinder(int slices)
 		PrevBot.Normal = ComputeNormal(PrevBot.Position, NextBot.Position, CenterBot.Position);
 		NextBot.Normal = ComputeNormal(NextBot.Position, CenterBot.Position, PrevBot.Position);
 
+		CenterBot.Normal = glm::normalize(CenterBot.Normal);
+		PrevBot.Normal = glm::normalize(PrevBot.Normal);
+		NextBot.Normal = glm::normalize(NextBot.Normal);
+
 		cylinder.push_back(CenterBot);
 		cylinder.push_back(PrevBot);
 		cylinder.push_back(NextBot);
 
 		//mid triangle 1
 
-		PrevTop.Normal = ComputeNormal(PrevTop.Position, PrevBot.Position, NextBot.Position);
-		PrevBot.Normal = ComputeNormal(PrevBot.Position, NextBot.Position, PrevTop.Position);
-		NextBot.Normal = ComputeNormal(NextBot.Position, PrevTop.Position, NextBot.Position);
+		PrevTop.Normal = ComputeNormal(PrevTop.Position, NextBot.Position,PrevBot.Position );
+		PrevBot.Normal = ComputeNormal(PrevBot.Position, PrevTop.Position,NextBot.Position );
+		NextBot.Normal = ComputeNormal(NextBot.Position, NextBot.Position,PrevTop.Position );
 
-		cylinder.push_back(PrevTop);
-		cylinder.push_back(PrevBot);
+		PrevTop.Normal = glm::normalize(PrevTop.Normal);
+		PrevBot.Normal = glm::normalize(PrevBot.Normal);
+		NextBot.Normal = glm::normalize(NextBot.Normal);
+
 		cylinder.push_back(NextBot);
+		cylinder.push_back(PrevBot);
+		cylinder.push_back(PrevTop);
 
 		//mid triangle 2
 
-		NextBot.Normal = ComputeNormal(NextBot.Position, NextTop.Position, PrevTop.Position);
-		NextTop.Normal = ComputeNormal(NextTop.Position, PrevTop.Position, NextBot.Position);
-		PrevTop.Normal = ComputeNormal(PrevTop.Position, NextBot.Position, NextTop.Position);
+		NextBot.Normal = ComputeNormal(NextBot.Position, PrevTop.Position, NextTop.Position);
+		NextTop.Normal = ComputeNormal(NextTop.Position,NextBot.Position , PrevTop.Position);
+		PrevTop.Normal = ComputeNormal(PrevTop.Position,NextTop.Position , NextBot.Position);
+
+		NextBot.Normal = glm::normalize(NextBot.Normal);
+		NextTop.Normal = glm::normalize(NextTop.Normal);
+		PrevTop.Normal = glm::normalize(PrevTop.Normal);
 
 		cylinder.push_back(PrevTop);
-		cylinder.push_back(PrevBot);
+		cylinder.push_back(NextTop);
 		cylinder.push_back(NextBot);
 
 		//set the next to the previous
 
 		PrevBot = NextBot;
 		PrevTop = NextTop;
+
+		actualUV += XstepUV;
 
 	}
 
@@ -428,12 +639,180 @@ std::vector<MyVertex> CreateSphere(int slices)
 	float pi = glm::pi<float>();
 
 	float verticalSub = slices / 2;
+	float vertAngleStep = pi / verticalSub; 
+	float horizAngleStep = 2.0 * pi / slices;
+	float vertAngle = 0;
+	float horizAngle = 0;
 
-	float vertAngle = pi / verticalSub;
+	std::vector<MyVertex> Finalcylinder;
+
+	glm::vec4 topPos(0.0f, 0.5f, 0.0f, 1.0f);
+	glm::vec4 botPos(0.0f, -0.5f, 0.0f, 1.0f);
+
+	glm::vec4 prevposBot(0.5f, -0.5f, 0.0f, 1.0f);
+	glm::vec4 prevposTop(0.5f, 0.5f, 0.0f, 1.0f);
+
+	MyVertex Top;
+	MyVertex Bot;
+	MyVertex PrevBot;
+	MyVertex PrevTop;
+	MyVertex NextBot;
+	MyVertex NextTop;
+	MyVertex FirstTopPrev;
+	MyVertex FirstTopNext;
+	MyVertex FirstBotPrev;
+	MyVertex FirstBotNext;
 
 
+	for (int i = 0; i <= slices; i++)
+	{
+		//get the top triangle
+		Top.Position = topPos;
+		PrevTop.Position = glm::vec4(sin(vertAngle) * cos(horizAngle) * 0.5, cos(vertAngle) * 0.5, sin(vertAngle) * sin(horizAngle) * 0.5, 1.0f);
+		NextTop.Position = glm::vec4(sin(vertAngle) * cos(horizAngle + ( 2.0 * pi / slices)) * 0.5, cos(vertAngle) * 0.5, sin(vertAngle) * sin(horizAngle + (2.0 * pi / slices)) * 0.5, 1.0f);
+
+		Finalcylinder.push_back(Top);
+		Finalcylinder.push_back(NextTop);
+		Finalcylinder.push_back(PrevTop);
+
+		Bot.Position = botPos;
+		PrevBot.Position = PrevTop.Position;
+		PrevBot.Position.y *= -1;
+		NextBot.Position = NextTop.Position;
+		NextBot.Position.y *= -1;
+
+		Finalcylinder.push_back(Bot);
+		Finalcylinder.push_back(PrevBot);
+		Finalcylinder.push_back(NextBot);
+
+		FirstBotPrev = PrevBot;
+		FirstBotNext = NextBot;
+		FirstTopPrev = PrevTop;
+		FirstTopNext = NextTop;
+
+		//for (int i = 0; i <= verticalSub; i++)
+		//{
+		//	PrevTop.Position = glm::vec4(sin(vertAngle) * cos(horizAngle) * 0.5, cos(vertAngle) * 0.5, sin(vertAngle) * sin(horizAngle) * 0.5, 1.0f);
+		//	PrevTop.Position = glm::vec4(sin(vertAngle) * cos(horizAngle + (2.0 * pi / slices)) * 0.5, cos(vertAngle) * 0.5, sin(vertAngle) * sin(horizAngle + (2.0 * pi / slices)) * 0.5, 1.0f);
+		//	
+		//	PrevBot.Position = glm::vec4(sin(vertAngle + (pi / verticalSub)) * cos(horizAngle) * 0.5, cos(vertAngle + (pi / verticalSub)) * 0.5, sin(vertAngle + (pi / verticalSub)) * sin(horizAngle) * 0.5, 1.0f);
+		//	NextBot.Position = glm::vec4(sin(vertAngle + (pi / verticalSub)) * cos(horizAngle + (2.0 * pi / slices)) * 0.5, cos(vertAngle) * 0.5, sin(vertAngle + (pi / verticalSub)) * sin(horizAngle + (2.0 * pi / slices)) * 0.5, 1.0f);
+		//
+		//
+		//	Finalcylinder.push_back(PrevTop);
+		//	Finalcylinder.push_back(PrevBot);
+		//	Finalcylinder.push_back(NextBot);
+		//
+		//	Finalcylinder.push_back(PrevTop);
+		//	Finalcylinder.push_back(NextBot);
+		//	Finalcylinder.push_back(NextTop);
+		//
+		//	PrevBot.Position = NextBot.Position;
+		//	PrevTop.Position = NextTop.Position;
+		//
+		//	vertAngle += vertAngleStep;
+		//}
+
+		horizAngle += horizAngleStep;
+
+	}
+	return Finalcylinder;
+}
+
+std::vector<glm::vec4> GetNormalVec(Mesh obj)
+{
+	std::vector<glm::vec4> normals;
+
+	for (unsigned int i = 0; i < obj.mesh.size(); i++)
+	{
+		glm::vec4 position = obj.mesh[i].Position;
+		glm::vec3 normal = obj.mesh[i].Normal;
+
+		normals.push_back(position);
+
+		glm::vec4 normalEnd(position.x + (normal.x / 2.0), position.y + (normal.y / 2.0), position.z + (normal.z / 2.0), 1.0f);
+		normalEnd = position + normalEnd;
+		normalEnd = glm::normalize(normalEnd); 
 
 
+		normals.push_back(( normalEnd / 4.0f));
 
-	return std::vector<MyVertex>{};
+	}
+
+	return normals;
+}
+
+std::vector<MyVertex> SceneObjs::LoadTinyObj(const char* filename)
+{
+	std::vector<MyVertex> mesh;
+
+	tinyobj::attrib_t atributes;
+	std::vector<tinyobj::shape_t> shapes;
+	std::string warning;
+	std::string error;
+	
+	bool works = tinyobj::LoadObj(&atributes, &shapes, nullptr,&warning, &error, filename);
+
+	if (!works)
+	{
+		return std::vector<MyVertex>{};
+	}
+
+	tinyobj::shape_t myshape = shapes[0];
+
+	for (unsigned int i = 0; i <= myshape.mesh.indices.size() - 1; i++)
+	{
+		MyVertex newVert;
+		tinyobj::index_t indice = myshape.mesh.indices[i];
+
+		newVert.Position = glm::vec4(atributes.vertices[3 * indice.vertex_index], atributes.vertices[3 * indice.vertex_index + 1], atributes.vertices[3 * indice.vertex_index + 2], 1.0f);
+		newVert.Normal = glm::vec3(atributes.normals[3 * indice.normal_index], atributes.normals[3 * indice.normal_index + 1], atributes.normals[3 * indice.normal_index + 2]);
+		newVert.UV = glm::vec2(atributes.texcoords[2 * indice.texcoord_index], atributes.texcoords[2 * indice.texcoord_index + 1]);
+		mesh.push_back(newVert);
+	}
+
+	return mesh;
+}
+
+Texture::Texture()
+{
+	texture = new unsigned[3 * 6 * 6];
+
+	unsigned Blue[3] = {0,0,255};
+	unsigned Cyan[3] = { 0,255,255 };
+	unsigned Green[3] = { 0,255,0 };
+	unsigned Yellow[3] = { 255,255,0 };
+	unsigned Red[3] = { 255,0,0 };
+	unsigned Purple[3] = { 255,0,255 };
+
+	texture[0] = 0;			texture[3] = 0;         texture[6] = 0;        texture[9] = 225;		texture[12] = 255;		texture[15] = 255;
+	texture[1] = 0;			texture[4] = 225;       texture[7] = 225;	   texture[10] = 255;		texture[13] = 0;		texture[16] = 0;
+	texture[2] = 225;		texture[5] = 225;       texture[8] = 0;        texture[11] = 0;		    texture[14] = 0;		texture[17] = 255;
+
+	texture[18] = 255;      texture[21] = 0;        texture[24] = 0;       texture[27] = 0;			texture[30] = 225;		texture[33] = 255;
+	texture[19] = 0;		texture[22] = 0;        texture[25] = 225;	   texture[28] = 225;		texture[31] = 255;		texture[34] = 0;
+	texture[20] = 255;	    texture[23] = 225;      texture[26] = 225;     texture[29] = 0;			texture[32] = 0;		texture[35] = 0;
+
+	texture[36] = 0;        texture[39] = 255;      texture[42] = 0;        texture[45] = 0;		texture[48] = 0;		texture[51] = 225;
+	texture[37] = 255;      texture[40] = 0;        texture[43] = 0;		texture[46] = 225;		texture[49] = 0;		texture[52] = 225;
+	texture[38] = 0;	    texture[41] = 225;      texture[44] = 225;      texture[47] = 225;		texture[50] = 0;		texture[53] = 0;
+
+	texture[54] = 225;      texture[57] = 0;        texture[60] = 225;      texture[63] = 0;		texture[66] = 0;		texture[69] = 0;
+	texture[55] = 225;      texture[58] = 255;      texture[61] = 0;		texture[64] = 0;		texture[67] = 225;		texture[70] = 0;
+	texture[56] = 0;		texture[59] = 0;        texture[62] = 225;      texture[65] = 225;		texture[68] = 225;		texture[71] = 0;
+
+	texture[72] = 255;      texture[75] = 225;      texture[78] = 0;        texture[81] = 225;		texture[84] = 0;		texture[87] = 0;
+	texture[73] = 0;        texture[76] = 225;      texture[79] = 225;		texture[82] = 0;		texture[85] = 0;		texture[88] = 225;
+	texture[74] = 0;	    texture[77] = 0;		texture[80] = 0;        texture[83] = 225;		texture[86] = 225;		texture[89] = 225;
+
+	texture[90] = 255;      texture[93] = 225;      texture[96] = 225;      texture[99] = 0;		texture[102] = 225;		texture[105] = 0;
+	texture[91] = 0;        texture[94] = 0;        texture[97] = 225;		texture[100] = 225;		texture[103] = 0;		texture[106] = 0;
+	texture[92] = 225;	    texture[95] = 0;        texture[98] = 0;		texture[101] = 0;		texture[104] = 225;		texture[107] = 225;
+
+
+}
+
+Texture::~Texture()
+{
+	delete[] texture;
 }

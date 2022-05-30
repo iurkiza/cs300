@@ -2,19 +2,26 @@
 #include <iostream>
 #include <string>
 #include <vector>
-
+#define TINYOBJLOADER_IMPLEMENTATION
 #include <GL/glew.h>
 #include <GL/GL.h>
 #include <SDL2/SDL.h>
 #include "Parser/CS300Parser.h"
+#include "glm/gtc/matrix_transform.hpp"
 #include "OGLDebug.h"
 #include "ShaderUtils.h"
-
+#include "tiny_obj_loader.h"
 #include "Vertex.h"
+
 
 static int     winID;
 static GLsizei WIDTH = 1280;
 static GLsizei HEIGHT = 720;
+static GLuint theProgram;
+static GLuint texture;
+static bool wireframeMode;
+static bool textureMap;
+static bool drawNormals;
 
 struct Vertex
 {
@@ -27,98 +34,123 @@ const Vertex vertexData[3] = {
 	{{0.75f, -0.75f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.0f}},
 	{{-0.75f, -0.75f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f}} };
 
-namespace
+
+GLuint InitializeProgram()
 {
-	GLuint theProgram;
-	GLuint vertexBufferObject;
-	GLuint vao;
-}
+	return ShaderUtils::CreateShaderProgram("data//vertshader.vert", "data//fragShader.frag");
+	
 
-void InitializeProgram()
-{
-	theProgram = ShaderUtils::CreateShaderProgram("data//vertshader.vert", "data//fragShader.frag");
-
-}
-
-
-void InitializeBuffers()
-{
-	std::vector<MyVertex> cube = CreateCylinder(20);
-
-	glDisable(GL_CULL_FACE);
-
-	// VAO
-	glGenVertexArrays(1, &vao);
-
-	// VBO
-	glGenBuffers(1, &vertexBufferObject);
-
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * cube.size(), cube.data(), GL_STATIC_DRAW);
-
-	// Insert the VBO into the VAO
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(MyVertex), 0);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
-
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
-
-	// Unbind
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-}
-
-//Called after the window and OpenGL are initialized. Called exactly once, before the main loop.
-void init()
-{
-	InitializeProgram();
-	InitializeBuffers();
 }
 
 //Called to update the display.
 //You should call SDL_GL_SwapWindow after all of your rendering to display what you rendered.
-void display(SDL_Window* window)
+void display(SDL_Window* window, Mesh& obj)
 {
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+
+	glm::mat4 projection = glm::perspective(glm::radians(Camera::fovy), Camera::width / Camera::height, Camera::nearPlane, Camera::farPlane);
+
+	glm::mat4 View = glm::lookAt(Camera::camPos, Camera::camTarget, Camera::camUp);
+
+	glm::mat4 Model = glm::translate(glm::mat4(1.0f), obj.transform.pos) *
+					 (glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
+					  glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
+					  glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f)))*
+					  glm::scale(glm::mat4(1.0f), obj.transform.sca);
+	
+
+	glm::mat4 MVP = projection * View * Model;
 
 	// Bind the glsl program and this object's VAO
 	glUseProgram(theProgram);
-	glBindVertexArray(vao);
+	glBindVertexArray(obj.VAO);
 
-	std::vector<MyVertex> cube = CreateCylinder(20);
+	int location = glGetUniformLocation(theProgram, "u_MVP");
+
+	glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
+
+	int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
+	int TexValue = textureMap;
+	glUniform1i(textureLoc, textureMap);
+
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	int textureLocalization = glGetUniformLocation(theProgram, "u_Texture");
+	glUniform1i(textureLocalization, 0);
 
 	// Draw
-	glDrawArrays(GL_TRIANGLES, 0, cube.size());
+	if (!wireframeMode)
+	{
+		//glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glDrawArrays(GL_TRIANGLES, 0, obj.mesh.size());
+	}
+	else if (wireframeMode)
+	{
+		glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawArrays(GL_TRIANGLES, 0, obj.mesh.size());
+	}
 
 	// Unbind
 	glBindVertexArray(0);
+
+	if (drawNormals)
+	{
+		glBindVertexArray(obj.NormalVAO);
+		glDrawArrays(GL_LINES, 0, obj.Normals.size());
+
+		// Unbind
+		glBindVertexArray(0);
+	}
+	
 	glUseProgram(0);
 
-	SDL_GL_SwapWindow(window);
 }
 
-void cleanup()
+void cleanup(GLuint theProgram, SceneObjs scene)
 {
 	// Delete the program
 	glDeleteProgram(theProgram);
-	// Delete the VBOs
-	glDeleteBuffers(1, &vertexBufferObject);
-	// Delete the VAO
-	glDeleteVertexArrays(1, &vao);
+
+	for (unsigned i = 0; i < scene.objects.size(); i++)
+	{
+		// Delete the VBOs
+		glDeleteBuffers(1, &scene.objects[i].VBO);
+		// Delete the VAO
+		glDeleteVertexArrays(1, &scene.objects[i].VAO);
+	}
+	
+}
+
+GLuint LoadTexture()
+{
+	int w = 6;
+	int h = 6;
+
+
+	GLuint texture;
+
+	Texture mytexture;
+
+	// Create texture
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	// Give pixel data to opengl
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, mytexture.texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	return texture;
 }
 
 #undef main
 int main(int argc, char* args[])
 {
-
-	std::vector<MyVertex> cube = CreatePlane();
-
-
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 	{
 		std::cout << "Could not initialize SDL: " << SDL_GetError() << std::endl;
@@ -182,17 +214,39 @@ int main(int argc, char* args[])
 		std::cout << glGetStringi(GL_EXTENSIONS, i) << std::endl;
 	}
 
-	init();	
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+	glFrontFace(GL_CCW);
 
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+	glDepthRange(0.f, 1.f);
+	glEnable(GL_CLAMP);
+
+	textureMap = false;
+	drawNormals = false;
+	wireframeMode = false;
+
+	//get the shaders and set them
+	theProgram = ShaderUtils::CreateShaderProgram("data/vertshader.vert", "data/fragShader.frag");
+	//glUseProgram(theProgram);
 	
 	//Initialize the parser
 	CS300Parser parser;
-	parser.LoadDataFromFile("data//scene_A0.txt");
+	parser.LoadDataFromFile("data/scene_A0.txt");
 	
 	//get the camera data
 	Camera camera;
 	camera.GetCameraValues(parser);
-	
+
+	//Create the meshes and store them in an array
+	SceneObjs Scene;
+	Scene.LoadObjects(parser);
+
+	texture = LoadTexture();
+
+
 	
 	SDL_Event event;
 	bool      quit = false;
@@ -209,14 +263,96 @@ int main(int argc, char* args[])
 			case SDL_KEYDOWN:
 				if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
 					quit = true;
+				if (event.key.keysym.scancode == SDL_SCANCODE_A)
+				{
+					Camera::phi -= 0.03;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_D)
+				{
+					Camera::phi += 0.03;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_Q)
+				{
+					Camera::r -= 0.5;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_E)
+				{
+					Camera::r += 0.5;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_S)
+				{
+					if(Camera::theta <glm::pi<float>() - 0.02)
+					Camera::theta += 0.03;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_W)
+				{
+					if (Camera::theta > 0.1)
+					Camera::theta -= 0.03;
+				}
+				else if (event.key.keysym.scancode == SDL_SCANCODE_P)
+				{
+					Camera::slices++;
+					Scene.ReoadMeshes();
+				}
+				if (event.key.keysym.scancode == SDL_SCANCODE_O)
+				{
+					if(Camera::slices > 4)
+					Camera::slices--;
+					Scene.ReoadMeshes();
+				}
+				if (event.key.keysym.scancode == SDL_SCANCODE_M)
+				{
+					if (wireframeMode)
+					{
+						wireframeMode = false;
+					}
+					else if (!wireframeMode)
+					{
+						wireframeMode = true;
+					}
+				}
+				if (event.key.keysym.scancode == SDL_SCANCODE_T)
+				{
+					if (textureMap)
+					{
+						textureMap = false;
+					}
+					else if (!textureMap)
+					{
+						textureMap = true;
+					}
+				}
+				if (event.key.keysym.scancode == SDL_SCANCODE_N)
+				{
+					if (drawNormals)
+					{
+						drawNormals = false;
+					}
+					else if (!drawNormals)
+					{
+						drawNormals = true;
+					}
+				}
 				break;
 			}
 		}
 
-		display(window);
+		//UpdateCamera();
+		CalculateCamPosition();
+
+		glClearColor(0.5f, 0.5f, 0.5f, 0.5f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		for (unsigned i = 0; i < Scene.objects.size(); i++)
+		{
+			display(window, Scene.objects[i]);
+		}
+
+		SDL_GL_SwapWindow(window);
+
 	}
 
-	cleanup();
+	cleanup(theProgram, Scene);
 
 	SDL_GL_DeleteContext(context_);
 	SDL_DestroyWindow(window);

@@ -21,25 +21,43 @@ public:
 
 };
 
+struct Transform
+{
+	std::string name;
+
+	std::string mesh;
+
+	glm::vec3 pos;
+	glm::vec3 rot;
+	glm::vec3 sca;
+};
+
+struct Texture
+{
+	Texture();
+	~Texture();
+
+	unsigned* texture;
+};
+
 class Mesh
 {
 public:
 
-	struct Transform
-	{
-		std::string name;
+	void InitializeBuffers();
 
-		std::string mesh;
-
-		glm::vec3 pos;
-		glm::vec3 rot;
-		glm::vec3 sca;
-	};
+	Transform transform;
 
 	GLuint VAO;
 	GLuint VBO;
 
+	GLuint NormalVAO;
+	GLuint NormalVBO;
+
+	int handle;
+
 	std::vector<MyVertex> mesh;
+	std::vector<glm::vec4> Normals;
 };
 
 
@@ -56,12 +74,23 @@ public:
 	static glm::vec3 camTarget;
 	static glm::vec3 camUp;
 
+	static float r;
+	static float theta;
+	static float phi;
+
+	static int slices;
+
 	static void GetCameraValues(CS300Parser parser);
+	static void CalculateCamPosition();
 };
 
 class SceneObjs
 {
+public:
 	void LoadObjects(CS300Parser parser);
+	std::vector<MyVertex> LoadTinyObj(const char* filename);
+	void ReoadMeshes();
+
 	std::vector<Mesh> objects;
 };
 
@@ -76,3 +105,7 @@ std::vector<MyVertex> CreateCylinder(int slices = 4);
 std::vector<MyVertex> CreateSphere(int slices = 4);
 
 glm::vec3 ComputeNormal(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3);
+
+void CalculateCamPosition();
+
+std::vector<glm::vec4> GetNormalVec(Mesh obj);
