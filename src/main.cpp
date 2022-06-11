@@ -61,15 +61,11 @@ void UpdatePositions(Light& light)
 
 void UpdatePositions(Mesh& obj)
 {
-	auto ticks = SDL_GetTicks();
-
-	float time = static_cast<float>(ticks);
-
-	time /= 1000000;
+	float ticks = SDL_GetTicks();
 
 	for (size_t u = 0; u < obj.transform.anims.size(); u++)
 	{
-		obj.transform.pos = obj.transform.anims[u].Update(obj.transform.pos, time);
+		obj.transform.pos = obj.transform.anims[u].Update(obj.transform.pos, ticks / 100000.0f);
 	}
 
 }
@@ -99,6 +95,11 @@ void display(SDL_Window* window, SceneObjs& scene)
 		glUseProgram(theProgram);
 		glBindVertexArray(scene.objects[i].VAO);
 
+		//uniform of M2W
+		int M2Wloc = glGetUniformLocation(theProgram, "u_M2W");
+		glUniformMatrix4fv(M2Wloc, 1, GL_FALSE, &Model[0][0]);
+
+
 		//uniform of MVP
 		int location = glGetUniformLocation(theProgram, "u_MVP");
 		glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
@@ -113,10 +114,43 @@ void display(SDL_Window* window, SceneObjs& scene)
 
 		//number of lights
 		int numoflights = glGetUniformLocation(theProgram, "uLightNum");
-		glUniform1i(numoflights, sizeof(scene.lights.size()));
+		glUniform1i(numoflights, 1);
 
 		//pass the light
+		
+		int type = glGetUniformLocation(theProgram, "uLight[0].type");
+		if (scene.lights[0].type == "POINT")
+		{
+			glUniform1i(type, 1);
+		}
+		else
+		{
+			glUniform1i(type, 2);
+		}
 
+		int Pos = glGetUniformLocation(theProgram, "uLight[0].uPos");
+		glUniform3fv(Pos, 1, &scene.lights[0].pos.x);
+
+		int Dir = glGetUniformLocation(theProgram, "uLight[0].uDir");
+		glUniform3fv(Pos, 1, &scene.lights[0].dir.x);
+
+		int Col = glGetUniformLocation(theProgram, "uLight[0].uCol");
+		glUniform3fv(Pos, 1, &scene.lights[0].col.x);
+
+		int Att = glGetUniformLocation(theProgram, "uLight[0].uAtt");
+		glUniform3fv(Pos, 1, &scene.lights[0].att.x);
+
+		int amb = glGetUniformLocation(theProgram, "uLight[0].uAmb");
+		glUniform1i(amb, scene.lights[0].amb);
+
+		int Inner = glGetUniformLocation(theProgram, "uLight[0].uInner");
+		glUniform1i(Inner, scene.lights[0].inner);
+
+		int Outter = glGetUniformLocation(theProgram, "uLight[0].uOuter");
+		glUniform1i(Outter, scene.lights[0].outer);
+		
+		int falloff = glGetUniformLocation(theProgram, "uLight[0].falloff");
+		glUniform1i(falloff, scene.lights[0].falloff);
 
 
 
