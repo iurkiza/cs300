@@ -22,6 +22,8 @@ static GLuint texture;
 static bool wireframeMode;
 static bool textureMap;
 static bool drawNormals;
+static bool normalColor;
+static bool normalVec;
 
 struct Vertex
 {
@@ -42,69 +44,181 @@ GLuint InitializeProgram()
 
 }
 
+void UpdatePositions(Light& light)
+{
+	auto ticks = SDL_GetTicks();
+
+	float time = static_cast<float>(ticks);
+
+	time /= 1000000;
+
+	for (size_t u = 0; u < light.anims.size(); u++)
+	{
+		light.pos = light.anims[u].Update(light.pos, time);
+	}
+
+}
+
+void UpdatePositions(Mesh& obj)
+{
+	auto ticks = SDL_GetTicks();
+
+	float time = static_cast<float>(ticks);
+
+	time /= 1000000;
+
+	for (size_t u = 0; u < obj.transform.anims.size(); u++)
+	{
+		obj.transform.pos = obj.transform.anims[u].Update(obj.transform.pos, time);
+	}
+
+}
+
 //Called to update the display.
 //You should call SDL_GL_SwapWindow after all of your rendering to display what you rendered.
-void display(SDL_Window* window, Mesh& obj)
+void display(SDL_Window* window, SceneObjs& scene)
 {
-
-	glm::mat4 projection = glm::perspective(glm::radians(Camera::fovy), Camera::width / Camera::height, Camera::nearPlane, Camera::farPlane);
-
-	glm::mat4 View = glm::lookAt(Camera::camPos, Camera::camTarget, Camera::camUp);
-
-	glm::mat4 Model = glm::translate(glm::mat4(1.0f), obj.transform.pos) *
-					 (glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
-					  glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
-					  glm::rotate(glm::mat4(1.0f), glm::radians(obj.transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f)))*
-					  glm::scale(glm::mat4(1.0f), obj.transform.sca);
-	
-
-	glm::mat4 MVP = projection * View * Model;
-
-	// Bind the glsl program and this object's VAO
-	glUseProgram(theProgram);
-	glBindVertexArray(obj.VAO);
-
-	int location = glGetUniformLocation(theProgram, "u_MVP");
-
-	glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
-
-	int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
-	int TexValue = textureMap;
-	glUniform1i(textureLoc, textureMap);
-
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	int textureLocalization = glGetUniformLocation(theProgram, "u_Texture");
-	glUniform1i(textureLocalization, 0);
-
-	// Draw
-	if (!wireframeMode)
+	for (unsigned i = 0; i < scene.objects.size(); i++)
 	{
-		//glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glDrawArrays(GL_TRIANGLES, 0, obj.mesh.size());
-	}
-	else if (wireframeMode)
-	{
-		glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
-		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawArrays(GL_TRIANGLES, 0, obj.mesh.size());
-	}
+		UpdatePositions(scene.objects[i]);
+		//get the transformations
+		glm::mat4 projection = glm::perspective(glm::radians(Camera::fovy), Camera::width / Camera::height, Camera::nearPlane, Camera::farPlane);
 
-	// Unbind
-	glBindVertexArray(0);
+		glm::mat4 View = glm::lookAt(Camera::camPos, Camera::camTarget, Camera::camUp);
 
-	if (drawNormals)
-	{
-		glBindVertexArray(obj.NormalVAO);
-		glDrawArrays(GL_LINES, 0, obj.Normals.size());
+		glm::mat4 Model = glm::translate(glm::mat4(1.0f), scene.objects[i].transform.pos) *
+						 (glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
+						  glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
+						  glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f)))*
+						  glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
+		
+		//get the MVP
+		glm::mat4 MVP = projection * View * Model;
+
+		// Bind the glsl program and this object's VAO
+		glUseProgram(theProgram);
+		glBindVertexArray(scene.objects[i].VAO);
+
+		//uniform of MVP
+		int location = glGetUniformLocation(theProgram, "u_MVP");
+		glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
+
+		//uniform of texture bool
+		int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
+		int TexValue = textureMap;
+		glUniform1i(textureLoc, textureMap);
+
+
+		//PASS THE LIGHT TO THE SHADER
+
+		//number of lights
+		int numoflights = glGetUniformLocation(theProgram, "uLightNum");
+		glUniform1i(numoflights, sizeof(scene.lights.size()));
+
+		//pass the light
+
+
+
+
+		//set the texture and pass it to the shader
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		int textureLocalization = glGetUniformLocation(theProgram, "u_Texture");
+		glUniform1i(textureLocalization, 0);
+
+		// Draw
+		if (!wireframeMode)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glDrawArrays(GL_TRIANGLES, 0, scene.objects[i].mesh.size());
+		}
+		else if (wireframeMode)
+		{
+			glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
+			glDrawArrays(GL_TRIANGLES, 0, scene.objects[i].mesh.size());
+		}
 
 		// Unbind
 		glBindVertexArray(0);
+
+		int DrawNorm = glGetUniformLocation(theProgram, "u_DrawNormalCol");
+		glUniform1i(DrawNorm, normalColor);
+
+		//normal drawing
+		if (drawNormals)
+		{
+			normalColor = true;
+			int DrawNorm = glGetUniformLocation(theProgram, "u_DrawNormalCol");
+			glUniform1i(DrawNorm, normalColor);
+			
+
+			glBindVertexArray(scene.objects[i].NormalVAO);
+			glDrawArrays(GL_LINES, 0, scene.objects[i].Normals.size());
+
+			// Unbind
+			glBindVertexArray(0);
+			normalColor = false;
+			
+			glUniform1i(glGetUniformLocation(theProgram, "u_DrawNormalCol"), normalColor);
+		}
+		
+		glUseProgram(0);
 	}
-	
-	glUseProgram(0);
+
+	for (unsigned int i = 0; i < scene.lights.size(); i++)
+	{
+		UpdatePositions(scene.lights[i]);
+
+		//get the transformations
+		glm::mat4 projection = glm::perspective(glm::radians(Camera::fovy), Camera::width / Camera::height, Camera::nearPlane, Camera::farPlane);
+
+		glm::mat4 View = glm::lookAt(Camera::camPos, Camera::camTarget, Camera::camUp);
+
+		glm::mat4 Model = glm::translate(glm::mat4(1.0f), scene.lights[i].pos) *
+			glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+
+		//get the MVP
+		glm::mat4 MVP = projection * View * Model;
+
+		// Bind the glsl program and this object's VAO
+		glUseProgram(theProgram);
+		glBindVertexArray(scene.lights[i].VAO);
+
+		//uniform of MVP
+		int location = glGetUniformLocation(theProgram, "u_MVP");
+		glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
+
+		//uniform of texture bool
+		int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
+		int TexValue = textureMap;
+		glUniform1i(textureLoc, textureMap);
+
+
+
+		// Draw
+		if (!wireframeMode)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glDrawArrays(GL_TRIANGLES, 0, scene.lights[i].mesh.size());
+		}
+		else if (wireframeMode)
+		{
+			glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
+			glDrawArrays(GL_TRIANGLES, 0, scene.lights[i].mesh.size());
+		}
+
+		// Unbind
+		glBindVertexArray(0);
+
+		int DrawNorm = glGetUniformLocation(theProgram, "u_DrawNormalCol");
+		glUniform1i(DrawNorm, normalColor);
+
+		//normal drawing
+
+		glUseProgram(0);
+
+	}
+
 
 }
 
@@ -138,7 +252,7 @@ GLuint LoadTexture()
 	glBindTexture(GL_TEXTURE_2D, texture);
 
 	// Give pixel data to opengl
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, mytexture.texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, mytexture.texture);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -234,7 +348,7 @@ int main(int argc, char* args[])
 	
 	//Initialize the parser
 	CS300Parser parser;
-	parser.LoadDataFromFile("data/scene_A0.txt");
+	parser.LoadDataFromFile("data/scene_A1.txt");
 	
 	//get the camera data
 	Camera camera;
@@ -245,6 +359,8 @@ int main(int argc, char* args[])
 	Scene.LoadObjects(parser);
 
 	texture = LoadTexture();
+
+	normalColor = false;
 
 
 	
@@ -333,20 +449,30 @@ int main(int argc, char* args[])
 						drawNormals = true;
 					}
 				}
+				if (event.key.keysym.scancode == SDL_SCANCODE_F)
+				{
+					if (Scene.avgNormals)
+					{
+						Scene.avgNormals = false;
+						Scene.ReoadMeshes();
+					}
+					else if (!Scene.avgNormals)
+					{
+						Scene.avgNormals = true;
+						Scene.ReoadMeshes();
+					}
+				}
 				break;
 			}
 		}
 
-		//UpdateCamera();
 		CalculateCamPosition();
 
-		glClearColor(0.5f, 0.5f, 0.5f, 0.5f);
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		for (unsigned i = 0; i < Scene.objects.size(); i++)
-		{
-			display(window, Scene.objects[i]);
-		}
+
+		display(window, Scene);
 
 		SDL_GL_SwapWindow(window);
 
@@ -355,7 +481,7 @@ int main(int argc, char* args[])
 	cleanup(theProgram, Scene);
 
 	SDL_GL_DeleteContext(context_);
-	SDL_DestroyWindow(window);
+	SDL_DestroyWindow(window); 
 	SDL_Quit();
 
 	return 0;

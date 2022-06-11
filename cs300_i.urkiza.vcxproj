@@ -87,6 +87,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Animations.cpp" />
     <ClCompile Include="src\Parser\CS300Parser.cpp" />
     <ClCompile Include="src\OGLDebug.cpp" />
     <ClCompile Include="src\ShaderUtils.cpp" />
@@ -94,6 +95,7 @@
     <ClCompile Include="src\Vertex.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Animations.h" />
     <ClInclude Include="src\Parser\CS300Parser.h" />
     <ClInclude Include="src\OGLDebug.h" />
     <ClInclude Include="src\ShaderUtils.h" />

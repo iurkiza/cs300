@@ -30,6 +30,9 @@ struct Transform
 	glm::vec3 pos;
 	glm::vec3 rot;
 	glm::vec3 sca;
+	float     ns = 10.0f;
+
+	std::vector<Animations::Anim> anims;
 };
 
 struct Texture
@@ -37,7 +40,7 @@ struct Texture
 	Texture();
 	~Texture();
 
-	unsigned* texture;
+	unsigned char* texture;
 };
 
 class Mesh
@@ -58,6 +61,30 @@ public:
 
 	std::vector<MyVertex> mesh;
 	std::vector<glm::vec4> Normals;
+};
+
+class Light
+{
+public:
+	glm::vec3 pos;
+	glm::vec3 dir;
+	glm::vec3 col;
+	glm::vec3 att;
+	float     amb = 0.0f;
+	float     inner = 0.0f;
+	float     outer = 30.0f;
+	float     falloff = 1.0f;
+
+	std::string type = "POINT";
+
+	GLuint VAO;
+	GLuint VBO;
+
+	void InitializeBuffers();
+
+	std::vector<Animations::Anim> anims;
+	std::vector<MyVertex> mesh;
+
 };
 
 
@@ -91,7 +118,10 @@ public:
 	std::vector<MyVertex> LoadTinyObj(const char* filename);
 	void ReoadMeshes();
 
+	bool avgNormals = true;
+
 	std::vector<Mesh> objects;
+	std::vector<Light> lights;
 };
 
 std::vector<MyVertex> CreateCube();
@@ -109,3 +139,7 @@ glm::vec3 ComputeNormal(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3);
 void CalculateCamPosition();
 
 std::vector<glm::vec4> GetNormalVec(Mesh obj);
+
+std::vector<glm::vec4> GetAvgNormal(Mesh obj);
+
+std::vector<glm::vec4> CubeAvgNormals(Mesh obj);
