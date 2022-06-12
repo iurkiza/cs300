@@ -205,6 +205,7 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 		//get the transform of the mesh
 		newobj.transform.mesh = parser.objects[i].mesh;
 		newobj.transform.name = parser.objects[i].name;
+		newobj.transform.OrigPos = parser.objects[i].pos;
 		newobj.transform.pos = parser.objects[i].pos;
 		newobj.transform.rot = parser.objects[i].rot;
 		newobj.transform.sca = parser.objects[i].sca;
@@ -279,6 +280,7 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 	{
 		Light newLight;
 
+		newLight.Origpos = parser.lights[i].pos;
 		newLight.pos = parser.lights[i].pos;
 		newLight.amb = parser.lights[i].amb;
 		newLight.anims = parser.lights[i].anims;

@@ -39,10 +39,10 @@ class CS300Parser
 
     struct Light
     {
-        glm::vec3 pos;
-        glm::vec3 dir;
-        glm::vec3 col;
-        glm::vec3 att;
+        glm::vec3 pos = glm::vec3(0.0, 0.0, 0.0);
+        glm::vec3 dir = glm::vec3(0.0, 0.0, 0.0);
+        glm::vec3 col = glm::vec3(0.0, 0.0, 0.0);
+        glm::vec3 att = glm::vec3(0.0, 0.0, 0.0);
         float     amb     = 0.0f;
         float     inner   = 0.0f;
         float     outer   = 30.0f;

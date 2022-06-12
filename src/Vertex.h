@@ -27,6 +27,7 @@ struct Transform
 
 	std::string mesh;
 
+	glm::vec3 OrigPos;
 	glm::vec3 pos;
 	glm::vec3 rot;
 	glm::vec3 sca;
@@ -66,6 +67,7 @@ public:
 class Light
 {
 public:
+	glm::vec3 Origpos;
 	glm::vec3 pos;
 	glm::vec3 dir;
 	glm::vec3 col;

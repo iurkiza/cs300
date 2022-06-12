@@ -24,6 +24,8 @@ static bool textureMap;
 static bool drawNormals;
 static bool normalColor;
 static bool normalVec;
+static bool itsALight;
+static bool light;
 
 struct Vertex
 {
@@ -50,8 +52,9 @@ void UpdatePositions(Light& light)
 
 	float time = static_cast<float>(ticks);
 
-	time /= 1000000;
+	time /= 1000.0f;
 
+	light.pos = light.Origpos;
 	for (size_t u = 0; u < light.anims.size(); u++)
 	{
 		light.pos = light.anims[u].Update(light.pos, time);
@@ -62,10 +65,11 @@ void UpdatePositions(Light& light)
 void UpdatePositions(Mesh& obj)
 {
 	float ticks = SDL_GetTicks();
-
+	
+	obj.transform.pos = obj.transform.OrigPos;
 	for (size_t u = 0; u < obj.transform.anims.size(); u++)
 	{
-		obj.transform.pos = obj.transform.anims[u].Update(obj.transform.pos, ticks / 100000.0f);
+		obj.transform.pos = obj.transform.anims[u].Update(obj.transform.pos, ticks / 1000.0f);
 	}
 
 }
@@ -74,6 +78,8 @@ void UpdatePositions(Mesh& obj)
 //You should call SDL_GL_SwapWindow after all of your rendering to display what you rendered.
 void display(SDL_Window* window, SceneObjs& scene)
 {
+	itsALight = false;
+	light = false;
 	for (unsigned i = 0; i < scene.objects.size(); i++)
 	{
 		UpdatePositions(scene.objects[i]);
@@ -83,22 +89,28 @@ void display(SDL_Window* window, SceneObjs& scene)
 		glm::mat4 View = glm::lookAt(Camera::camPos, Camera::camTarget, Camera::camUp);
 
 		glm::mat4 Model = glm::translate(glm::mat4(1.0f), scene.objects[i].transform.pos) *
-						 (glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
-						  glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
-						  glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f)))*
-						  glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
-		
+			(glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
+				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
+				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f))) *
+			glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
+
 		//get the MVP
 		glm::mat4 MVP = projection * View * Model;
+
+
+
 
 		// Bind the glsl program and this object's VAO
 		glUseProgram(theProgram);
 		glBindVertexArray(scene.objects[i].VAO);
 
 		//uniform of M2W
+		int ViewLoc = glGetUniformLocation(theProgram, "u_View");
+		glUniformMatrix4fv(ViewLoc, 1, GL_FALSE, &View[0][0]);
+
+		//uniform of M2W
 		int M2Wloc = glGetUniformLocation(theProgram, "u_M2W");
 		glUniformMatrix4fv(M2Wloc, 1, GL_FALSE, &Model[0][0]);
-
 
 		//uniform of MVP
 		int location = glGetUniformLocation(theProgram, "u_MVP");
@@ -117,41 +129,56 @@ void display(SDL_Window* window, SceneObjs& scene)
 		glUniform1i(numoflights, 1);
 
 		//pass the light
-		
+
 		int type = glGetUniformLocation(theProgram, "uLight[0].type");
-		if (scene.lights[0].type == "POINT")
+		if (scene.lights[3].type == "POINT")
 		{
 			glUniform1i(type, 1);
 		}
-		else
+		else if (scene.lights[3].type == "DIR")
 		{
 			glUniform1i(type, 2);
 		}
+		else if (scene.lights[3].type == "SPOT")
+		{
+			glUniform1i(type, 3);
+		}
 
+
+		glm::vec3 posInView = View * glm::vec4(scene.lights[3].pos, 1.0);
 		int Pos = glGetUniformLocation(theProgram, "uLight[0].uPos");
-		glUniform3fv(Pos, 1, &scene.lights[0].pos.x);
+		glUniform3fv(Pos, 1, &posInView.x);
 
+		glm::vec3 DirInView = View * glm::vec4(scene.lights[3].dir, 0.0);
 		int Dir = glGetUniformLocation(theProgram, "uLight[0].uDir");
-		glUniform3fv(Pos, 1, &scene.lights[0].dir.x);
+		glUniform3fv(Dir, 1, &DirInView.x);
 
 		int Col = glGetUniformLocation(theProgram, "uLight[0].uCol");
-		glUniform3fv(Pos, 1, &scene.lights[0].col.x);
+		glUniform3fv(Col, 1, &scene.lights[3].col.x);
 
 		int Att = glGetUniformLocation(theProgram, "uLight[0].uAtt");
-		glUniform3fv(Pos, 1, &scene.lights[0].att.x);
+		glUniform3fv(Att, 1, &scene.lights[3].att.x);
 
 		int amb = glGetUniformLocation(theProgram, "uLight[0].uAmb");
-		glUniform1i(amb, scene.lights[0].amb);
+		glUniform1f(amb, scene.lights[3].amb);
 
 		int Inner = glGetUniformLocation(theProgram, "uLight[0].uInner");
-		glUniform1i(Inner, scene.lights[0].inner);
+		glUniform1f(Inner, scene.lights[3].inner);
 
 		int Outter = glGetUniformLocation(theProgram, "uLight[0].uOuter");
-		glUniform1i(Outter, scene.lights[0].outer);
+		glUniform1f(Outter, scene.lights[3].outer);
 		
 		int falloff = glGetUniformLocation(theProgram, "uLight[0].falloff");
-		glUniform1i(falloff, scene.lights[0].falloff);
+		glUniform1f(falloff, scene.lights[3].falloff);
 
+		int CamPos = glGetUniformLocation(theProgram, "u_camPos");
+		glUniform3fv(CamPos, 1, &Camera::camPos.x);
+
+		int lightBool = glGetUniformLocation(theProgram, "u_isLight");
+		glUniform1i(lightBool, light);
+
+		int shiny = glGetUniformLocation(theProgram, "u_sh");
+		glUniform1f(shiny, scene.objects[i].transform.ns);
 
 
 		//set the texture and pass it to the shader
@@ -201,6 +228,8 @@ void display(SDL_Window* window, SceneObjs& scene)
 
 	for (unsigned int i = 0; i < scene.lights.size(); i++)
 	{
+		itsALight = true;
+
 		UpdatePositions(scene.lights[i]);
 
 		//get the transformations
@@ -228,6 +257,16 @@ void display(SDL_Window* window, SceneObjs& scene)
 		glUniform1i(textureLoc, textureMap);
 
 
+		if (itsALight)
+		{
+			light = true;
+			int lightBool = glGetUniformLocation(theProgram, "u_isLight");
+			glUniform1i(lightBool, light);
+
+			light = false;
+
+		}
+		
 
 		// Draw
 		if (!wireframeMode)
@@ -251,7 +290,9 @@ void display(SDL_Window* window, SceneObjs& scene)
 
 		glUseProgram(0);
 
+		itsALight = false;
 	}
+
 
 
 }
@@ -415,29 +456,29 @@ int main(int argc, char* args[])
 					quit = true;
 				if (event.key.keysym.scancode == SDL_SCANCODE_A)
 				{
-					Camera::phi -= 0.03;
+					Camera::phi -= 0.03f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_D)
 				{
-					Camera::phi += 0.03;
+					Camera::phi += 0.03f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_Q)
 				{
-					Camera::r -= 0.5;
+					Camera::r -= 0.5f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_E)
 				{
-					Camera::r += 0.5;
+					Camera::r += 0.5f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_S)
 				{
 					if(Camera::theta <glm::pi<float>() - 0.02)
-					Camera::theta += 0.03;
+					Camera::theta += 0.03f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_W)
 				{
 					if (Camera::theta > 0.1)
-					Camera::theta -= 0.03;
+					Camera::theta -= 0.03f;
 				}
 				else if (event.key.keysym.scancode == SDL_SCANCODE_P)
 				{
