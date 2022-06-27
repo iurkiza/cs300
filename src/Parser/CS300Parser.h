@@ -26,6 +26,7 @@ class CS300Parser
         std::string name;
 
         std::string mesh;
+        std::string normalMap = "data/textures/default_normal.png";
 
         glm::vec3 pos;
         glm::vec3 rot;
@@ -39,10 +40,10 @@ class CS300Parser
 
     struct Light
     {
-        glm::vec3 pos = glm::vec3(0.0, 0.0, 0.0);
-        glm::vec3 dir = glm::vec3(0.0, 0.0, 0.0);
-        glm::vec3 col = glm::vec3(0.0, 0.0, 0.0);
-        glm::vec3 att = glm::vec3(0.0, 0.0, 0.0);
+        glm::vec3 pos;
+        glm::vec3 dir;
+        glm::vec3 col;
+        glm::vec3 att;
         float     amb     = 0.0f;
         float     inner   = 0.0f;
         float     outer   = 30.0f;

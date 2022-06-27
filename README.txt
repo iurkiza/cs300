@@ -2,9 +2,9 @@
 Copyright (C) 2022 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
-Project: cs300_i.urkiza_1
+Project: cs300_i.urkiza_2
 Author: Ibon Urkiza, i.urkiza, 54000320
-Creation date: 15/04/2022
+Creation date: 12/06/2022
 ----------------------------------------------------------------------------------------------------------*/
 
 -How to run the program: The program is in x64. When I first execute it It takes time to load it. I dont know why it happens

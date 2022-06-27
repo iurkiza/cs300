@@ -13,11 +13,18 @@ public:
 
 	MyVertex();
 
-	glm::vec4 Position;
+	glm::vec4 Position = glm::vec4(0.0, 0.0, 0.0, 0.0);
 
-	glm::vec3 Normal;
+	glm::vec3 Normal = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 AvgNormal = glm::vec3(0.0, 0.0, 0.0);
 
-	glm::vec2 UV;
+	glm::vec3 Bitangent = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 AvgBitangent = glm::vec3(0.0, 0.0, 0.0);
+
+	glm::vec3 Tangent = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 AvgTangent = glm::vec3(0.0, 0.0, 0.0);
+
+	glm::vec2 UV = glm::vec2(0.0, 0.0);
 
 };
 
@@ -27,13 +34,15 @@ struct Transform
 
 	std::string mesh;
 
-	glm::vec3 OrigPos;
-	glm::vec3 pos;
-	glm::vec3 rot;
-	glm::vec3 sca;
+	glm::vec3 OrigPos = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 pos = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 rot = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 sca = glm::vec3(0.0, 0.0, 0.0);
 	float     ns = 10.0f;
 
 	std::vector<Animations::Anim> anims;
+
+	std::string normalMap = "data/textures/default_normal.png";
 };
 
 struct Texture
@@ -48,7 +57,8 @@ class Mesh
 {
 public:
 
-	void InitializeBuffers();
+	void InitializeBuffers(bool avgTangents);
+	void InitializeHeightMap();
 
 	Transform transform;
 
@@ -58,20 +68,29 @@ public:
 	GLuint NormalVAO;
 	GLuint NormalVBO;
 
-	int handle;
+	GLuint BitangentVAO;
+	GLuint BitangentVBO;
+
+	GLuint TangentVAO;
+	GLuint TangentVBO;
+
+	GLuint normalMap;
 
 	std::vector<MyVertex> mesh;
-	std::vector<glm::vec4> Normals;
+
+	std::vector<glm::vec4> TangentToDraw;
+	std::vector<glm::vec4> BiTangentsToDraw;
+	std::vector<glm::vec4> NormalsToDraw;
 };
 
 class Light
 {
 public:
-	glm::vec3 Origpos;
-	glm::vec3 pos;
-	glm::vec3 dir;
-	glm::vec3 col;
-	glm::vec3 att;
+	glm::vec3 Origpos = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 pos = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 dir = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 col = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 att = glm::vec3(0.0, 0.0, 0.0);
 	float     amb = 0.0f;
 	float     inner = 0.0f;
 	float     outer = 30.0f;
@@ -140,8 +159,15 @@ glm::vec3 ComputeNormal(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3);
 
 void CalculateCamPosition();
 
-std::vector<glm::vec4> GetNormalVec(Mesh obj);
+void GetNormalVec(Mesh& obj, bool drawAverage);
 
-std::vector<glm::vec4> GetAvgNormal(Mesh obj);
+void GetAvgNormal(Mesh& obj);
 
-std::vector<glm::vec4> CubeAvgNormals(Mesh obj);
+std::vector<glm::vec4> CubeAvgNormals(Mesh& obj);
+
+void ComputeNormals(std::vector<MyVertex>& mesh);
+
+void ComputeTangentBitangent(std::vector<MyVertex>& mesh);
+
+void TangetBitangentToDraw(Mesh& obj, bool drawAverage);
+

@@ -6,6 +6,7 @@ layout(location = 2) in vec2 aUV;
 
 uniform mat4 u_MVP;
 uniform mat4 u_M2W;
+uniform mat4 u_View;
 
 //out 
 out vec3 color;
@@ -20,11 +21,10 @@ void main()
    color = vec3(aUV, 0);
    UV = aUV;
    
-   Normal = aNormal;
-   pixPos =  u_M2W * aPosition;
+   Normal = vec3( transpose(inverse(u_View * u_M2W))* vec4(aNormal, 1.0));
+   pixPos = u_View * u_M2W * aPosition;
    
 };
-
 
 
 

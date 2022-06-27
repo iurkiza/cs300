@@ -23,6 +23,8 @@ static bool wireframeMode;
 static bool textureMap;
 static bool drawNormals;
 static bool normalColor;
+static bool tangentColor;
+static bool bitangentColor;
 static bool normalVec;
 static bool itsALight;
 static bool light;
@@ -64,7 +66,7 @@ void UpdatePositions(Light& light)
 
 void UpdatePositions(Mesh& obj)
 {
-	float ticks = SDL_GetTicks();
+	float ticks = static_cast<float>(SDL_GetTicks());
 	
 	obj.transform.pos = obj.transform.OrigPos;
 	for (size_t u = 0; u < obj.transform.anims.size(); u++)
@@ -92,12 +94,10 @@ void display(SDL_Window* window, SceneObjs& scene)
 			(glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
 				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
 				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f))) *
-			glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
+				glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
 
 		//get the MVP
 		glm::mat4 MVP = projection * View * Model;
-
-
 
 
 		// Bind the glsl program and this object's VAO
@@ -123,59 +123,64 @@ void display(SDL_Window* window, SceneObjs& scene)
 
 
 		//PASS THE LIGHT TO THE SHADER
-
+		
 		//number of lights
 		int numoflights = glGetUniformLocation(theProgram, "uLightNum");
-		glUniform1i(numoflights, 1);
+		glUniform1i(numoflights, scene.lights.size());
 
-		//pass the light
-
-		int type = glGetUniformLocation(theProgram, "uLight[0].type");
-		if (scene.lights[3].type == "POINT")
+		for (unsigned int j = 0; j < scene.lights.size(); j++)
 		{
-			glUniform1i(type, 1);
+			//pass the light
+
+			int type = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].type").c_str());
+			if (scene.lights[j].type == "POINT")
+			{
+				glUniform1i(type, 1);
+			}
+			else if (scene.lights[j].type == "DIR")
+			{
+				glUniform1i(type, 2);
+			}
+			else if (scene.lights[j].type == "SPOT")
+			{
+				glUniform1i(type, 3);
+			}
+
+
+			glm::vec3 posInView = View * glm::vec4(scene.lights[j].pos, 1.0);
+			int Pos = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uPos").c_str());
+			glUniform3fv(Pos, 1, &posInView.x);
+
+			glm::vec3 DirInView = View * glm::vec4(scene.lights[j].dir, 0.0);
+			int Dir = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uDir").c_str());
+			glUniform3fv(Dir, 1, &DirInView.x);
+
+			int Col = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uCol").c_str());
+			glUniform3fv(Col, 1, &scene.lights[j].col.x);
+
+			int Att = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uAtt").c_str());
+			glUniform3fv(Att, 1, &scene.lights[j].att.x);
+
+			int amb = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uAmb").c_str());
+			glUniform1f(amb, scene.lights[j].amb);
+
+			int Inner = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uInner").c_str());
+			glUniform1f(Inner, scene.lights[j].inner);
+
+			int Outter = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].uOuter").c_str());
+			glUniform1f(Outter, scene.lights[j].outer);
+			
+			int falloff = glGetUniformLocation(theProgram, std::string("uLight[" + std::to_string(j) + "].falloff").c_str());
+			glUniform1f(falloff, scene.lights[j].falloff);
+
+			int CamPos = glGetUniformLocation(theProgram, "u_camPos");
+			glUniform3fv(CamPos, 1, &Camera::camPos.x);
+
+			int lightBool = glGetUniformLocation(theProgram, "u_isLight");
+			glUniform1i(lightBool, light);
 		}
-		else if (scene.lights[3].type == "DIR")
-		{
-			glUniform1i(type, 2);
-		}
-		else if (scene.lights[3].type == "SPOT")
-		{
-			glUniform1i(type, 3);
-		}
 
 
-		glm::vec3 posInView = View * glm::vec4(scene.lights[3].pos, 1.0);
-		int Pos = glGetUniformLocation(theProgram, "uLight[0].uPos");
-		glUniform3fv(Pos, 1, &posInView.x);
-
-		glm::vec3 DirInView = View * glm::vec4(scene.lights[3].dir, 0.0);
-		int Dir = glGetUniformLocation(theProgram, "uLight[0].uDir");
-		glUniform3fv(Dir, 1, &DirInView.x);
-
-		int Col = glGetUniformLocation(theProgram, "uLight[0].uCol");
-		glUniform3fv(Col, 1, &scene.lights[3].col.x);
-
-		int Att = glGetUniformLocation(theProgram, "uLight[0].uAtt");
-		glUniform3fv(Att, 1, &scene.lights[3].att.x);
-
-		int amb = glGetUniformLocation(theProgram, "uLight[0].uAmb");
-		glUniform1f(amb, scene.lights[3].amb);
-
-		int Inner = glGetUniformLocation(theProgram, "uLight[0].uInner");
-		glUniform1f(Inner, scene.lights[3].inner);
-
-		int Outter = glGetUniformLocation(theProgram, "uLight[0].uOuter");
-		glUniform1f(Outter, scene.lights[3].outer);
-		
-		int falloff = glGetUniformLocation(theProgram, "uLight[0].falloff");
-		glUniform1f(falloff, scene.lights[3].falloff);
-
-		int CamPos = glGetUniformLocation(theProgram, "u_camPos");
-		glUniform3fv(CamPos, 1, &Camera::camPos.x);
-
-		int lightBool = glGetUniformLocation(theProgram, "u_isLight");
-		glUniform1i(lightBool, light);
 
 		int shiny = glGetUniformLocation(theProgram, "u_sh");
 		glUniform1f(shiny, scene.objects[i].transform.ns);
@@ -186,6 +191,12 @@ void display(SDL_Window* window, SceneObjs& scene)
 		glBindTexture(GL_TEXTURE_2D, texture);
 		int textureLocalization = glGetUniformLocation(theProgram, "u_Texture");
 		glUniform1i(textureLocalization, 0);
+
+		//set the texture and pass it to the shader
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, scene.objects[i].normalMap);
+		int heightmapLoc = glGetUniformLocation(theProgram, "u_heightMap");
+		glUniform1i(heightmapLoc, 1);
 
 		// Draw
 		if (!wireframeMode)
@@ -214,13 +225,42 @@ void display(SDL_Window* window, SceneObjs& scene)
 			
 
 			glBindVertexArray(scene.objects[i].NormalVAO);
-			glDrawArrays(GL_LINES, 0, scene.objects[i].Normals.size());
+			glDrawArrays(GL_LINES, 0, scene.objects[i].NormalsToDraw.size());
 
 			// Unbind
 			glBindVertexArray(0);
 			normalColor = false;
-			
 			glUniform1i(glGetUniformLocation(theProgram, "u_DrawNormalCol"), normalColor);
+
+			///////////////////////////////////////// TANGENTS
+
+			tangentColor = true;
+			glUniform1i(glGetUniformLocation(theProgram, "u_TangentCol"), tangentColor);
+			
+			glBindVertexArray(scene.objects[i].TangentVAO);
+			glDrawArrays(GL_LINES, 0, scene.objects[i].TangentToDraw.size());
+
+
+			// Unbind
+			glBindVertexArray(0);
+			tangentColor = false;
+			glUniform1i(glGetUniformLocation(theProgram, "u_TangentCol"), tangentColor);
+			///////////////////////////////////////// BiTANGENTS
+
+			bitangentColor = true;
+			glUniform1i(glGetUniformLocation(theProgram, "u_BitangentCol"), bitangentColor);
+
+			glBindVertexArray(scene.objects[i].BitangentVAO);
+			glDrawArrays(GL_LINES, 0, scene.objects[i].BiTangentsToDraw.size());
+
+
+			// Unbind
+			glBindVertexArray(0);
+			bitangentColor = false;
+
+			
+			
+			glUniform1i(glGetUniformLocation(theProgram, "u_BitangentCol"), bitangentColor);
 		}
 		
 		glUseProgram(0);
@@ -423,7 +463,7 @@ int main(int argc, char* args[])
 	
 	//Initialize the parser
 	CS300Parser parser;
-	parser.LoadDataFromFile("data/scene_A1.txt");
+	parser.LoadDataFromFile("data/scene_A2.txt");
 	
 	//get the camera data
 	Camera camera;
@@ -436,7 +476,8 @@ int main(int argc, char* args[])
 	texture = LoadTexture();
 
 	normalColor = false;
-
+	tangentColor = false;
+	bitangentColor = false;
 
 	
 	SDL_Event event;

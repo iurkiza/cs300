@@ -140,6 +140,15 @@ void CS300Parser::LoadDataFromFile(const char * filename)
                 objects.back().mesh = mesh;
             }
         }
+        else if (id == "normalMap")
+        {
+            std::string normalMap;
+            inFile >> normalMap;
+            if (objects.size() > 0)
+            {
+                objects.back().normalMap = normalMap;
+            }
+        }
         else if (id == "shininess")
         {
             float ns = ReadFloat(inFile);

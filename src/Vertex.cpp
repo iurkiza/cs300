@@ -7,12 +7,15 @@
  * @date 2022-05-31
  * 
  */
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
 #include "Vertex.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include <math.h>
 #include <iostream>
 #include "tiny_obj_loader.h"
 #include <algorithm>
+
 
 static bool avgNormal;
 
@@ -64,7 +67,7 @@ void Light::InitializeBuffers()
  * @brief Initializes the VAO and VBO of the mesh and the normals
  * 
  */
-void Mesh::InitializeBuffers()
+void Mesh::InitializeBuffers(bool avgTangents)
 {
 	// VAO
 	glGenVertexArrays(1, &VAO);
@@ -81,11 +84,37 @@ void Mesh::InitializeBuffers()
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(MyVertex), 0);
 
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
+	if (avgTangents)
+	{
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, AvgNormal)));
 
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
+
+		glEnableVertexAttribArray(3);
+		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, AvgTangent)));
+
+		glEnableVertexAttribArray(4);
+		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, AvgBitangent)));
+	}
+	else
+	{
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
+		
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
+
+		glEnableVertexAttribArray(3);
+		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Tangent)));
+
+		glEnableVertexAttribArray(4);
+		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Bitangent)));
+	}
+	
+
+	
 
 	//unbind
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -100,7 +129,45 @@ void Mesh::InitializeBuffers()
 
 	glBindVertexArray(NormalVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, NormalVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * Normals.size(), Normals.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * NormalsToDraw.size(), NormalsToDraw.data(), GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), 0);
+
+	//unbind
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	///////////////////////////////////////////////////////
+
+	// VAO
+	glGenVertexArrays(1, &TangentVAO);
+
+	// VBO
+	glGenBuffers(1, &TangentVBO);
+
+	glBindVertexArray(TangentVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, TangentVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * TangentToDraw.size(), TangentToDraw.data(), GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), 0);
+
+	//unbind
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	///////////////////////////////////////////////////////
+
+	// VAO
+	glGenVertexArrays(1, &BitangentVAO);
+
+	// VBO
+	glGenBuffers(1, &BitangentVBO);
+
+	glBindVertexArray(BitangentVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, BitangentVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * BiTangentsToDraw.size(), BiTangentsToDraw.data(), GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), 0);
@@ -110,6 +177,29 @@ void Mesh::InitializeBuffers()
 	glBindVertexArray(0);
 
 	return;
+}
+
+void Mesh::InitializeHeightMap()
+{
+	int height;
+	int with;
+	int req;
+
+	auto tex = stbi_load(transform.normalMap.c_str(), &with, &height, &req, 4);
+
+	// Create texture
+	glGenTextures(1, &normalMap);
+	glBindTexture(GL_TEXTURE_2D, normalMap);
+
+	// Give pixel data to opengl
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, with, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex);
+
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
 }
 
 /**
@@ -135,53 +225,90 @@ void SceneObjs::ReoadMeshes()
 		{
 			if (avgNormals)
 			{
-				objects[i].Normals = GetAvgNormal(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], true);
+				TangetBitangentToDraw(objects[i], true);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(true);
 			}
 			else
 			{
-				objects[i].Normals = GetNormalVec(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], false);
+				TangetBitangentToDraw(objects[i], false);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(false);
 			}
-			objects[i].InitializeBuffers();
 		}
 		if (objects[i].transform.mesh == "CONE")
 		{
 			objects[i].mesh = CreateCone(Slices);
 			if (avgNormals)
 			{
-				objects[i].Normals = GetAvgNormal(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], true);
+				TangetBitangentToDraw(objects[i], true);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(true);
 			}
 			else
 			{
-				objects[i].Normals = GetNormalVec(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], false);
+				TangetBitangentToDraw(objects[i], false);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(false);
 			}
-			objects[i].InitializeBuffers();
 		}
 		else if (objects[i].transform.mesh == "CYLINDER")
 		{
 			objects[i].mesh = CreateCylinder(Slices);
 			if (avgNormals)
 			{
-				objects[i].Normals = GetAvgNormal(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], true);
+				TangetBitangentToDraw(objects[i], true);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(true);
 			}
 			else
 			{
-				objects[i].Normals = GetNormalVec(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], false);
+				TangetBitangentToDraw(objects[i], false);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(false);
 			}
-			objects[i].InitializeBuffers();
 		}
 		else if (objects[i].transform.mesh == "SPHERE")
 		{
 			objects[i].mesh = CreateSphere(Slices);
 			if (avgNormals)
 			{
-				objects[i].Normals = GetAvgNormal(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], true);
+				TangetBitangentToDraw(objects[i], true);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(true);
 
 			}
 			else
 			{
-				objects[i].Normals = GetNormalVec(objects[i]);
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], false);
+				TangetBitangentToDraw(objects[i], false);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(false);
 			}
-			objects[i].InitializeBuffers();
+
 		}
 	
 	}
@@ -210,66 +337,131 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 		newobj.transform.rot = parser.objects[i].rot;
 		newobj.transform.sca = parser.objects[i].sca;
 		newobj.transform.anims = parser.objects[i].anims;
+		newobj.transform.normalMap = parser.objects[i].normalMap;
 
 		//depending which object is, load its mesh and normals
 		if (newobj.transform.mesh == "PLANE")
 		{
 			newobj.mesh = CreatePlane();
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, true);
+			TangetBitangentToDraw(newobj, true);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(true);
+
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "CUBE")
 		{
 			newobj.mesh = CreateCube();
-			newobj.Normals = GetAvgNormal(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, true);
+			TangetBitangentToDraw(newobj, true);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(true);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "CONE")
 		{
 			newobj.mesh = CreateCone(Camera::slices);
-			newobj.Normals = GetAvgNormal(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, true);
+			TangetBitangentToDraw(newobj, true);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(true);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "CYLINDER")
 		{
 			newobj.mesh = CreateCylinder(Camera::slices);
-			newobj.Normals = GetAvgNormal(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, true);
+			TangetBitangentToDraw(newobj, true);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(true);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "SPHERE")
 		{
 			newobj.mesh = CreateSphere(Camera::slices);
-			newobj.Normals = GetAvgNormal(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, true);
+			TangetBitangentToDraw(newobj, true);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(true);
+			newobj.InitializeHeightMap();
 		}
 		if (newobj.transform.mesh == "data/meshes/plane.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/plane.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "data/meshes/cube_face.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/cube_face.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "data/meshes/cone_20_face.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/cone_20_face.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "data/meshes/cylinder_20_face.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/cylinder_20_face.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "data/meshes/sphere_20_face.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/sphere_20_face.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "data/meshes/suzanne.obj")
 		{
 			newobj.mesh = LoadTinyObj("data/meshes/suzanne.obj");
-			newobj.Normals = GetNormalVec(newobj);
+			ComputeTangentBitangent(newobj.mesh);
+			GetAvgNormal(newobj);
+			GetNormalVec(newobj, false);
+			TangetBitangentToDraw(newobj, false);
+			//Initialize VAO and VBO
+			newobj.InitializeBuffers(false);
+			newobj.InitializeHeightMap();
 		}
-
-		//Initialize VAO and VBO
-		newobj.InitializeBuffers();
 
 		//push back into the objects array
 		objects.push_back(newobj);
@@ -300,6 +492,7 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 	}
 
 }
+
 
 /**
  * @brief Construct a new My Vertex:: My Vertex object
@@ -391,6 +584,104 @@ glm::vec3 ComputeNormal(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3)
 
 	//get the normal
 	return glm::cross(V1, V2);
+}
+
+
+void ComputeTangentBitangent(std::vector<MyVertex>& mesh)
+{
+	// Reset tangents and bitangents to zero vectors
+
+	for (int i = 0; i < mesh.size(); i++)
+	{
+		mesh[i].Bitangent = glm::vec3(0.0, 0.0, 0.0);
+		mesh[i].Tangent = glm::vec3(0.0, 0.0, 0.0);
+	}
+	// Loop through the triangles (using the index buffer)
+	for (int i = 0; i < mesh.size(); i += 3)
+	{
+		// Solve equations to find T and B for this triangle
+
+		glm::vec3 uv1 = glm::vec3(mesh[i + 1].UV.x - mesh[i].UV.x, mesh[i + 1].UV.y - mesh[i].UV.y, 1.0);
+		glm::vec3 uv2 = glm::vec3(mesh[i + 2].UV.x - mesh[i].UV.x, mesh[i + 2].UV.y - mesh[i].UV.y, 1.0);
+
+		glm::vec3 V1 = glm::vec3(mesh[i + 1].Position - mesh[i].Position);
+		glm::vec3 V2 = glm::vec3(mesh[i + 2].Position - mesh[i].Position);
+
+		glm::vec3 T;
+		glm::vec3 B;
+
+		if (((uv1.y * uv2.x) - (uv2.y * uv1.x)) >= glm::epsilon<float>())
+		{
+			T = glm::vec3(((uv1.y * (V2)) - (uv2.y * V1)) / ((uv1.y * uv2.x) - (uv2.y * uv1.x)));
+			B = glm::vec3(((uv2.x * V1) - (uv1.x * V2)) / ((uv1.y * uv2.x) - (uv2.y * uv1.x)));
+
+		}
+		else
+		{
+			B = glm::vec3(0.0, 1.0, 0.0);
+			T = glm::vec3(1.0, 0.0, 0.0);
+
+		}
+
+		// Accumulate tangent/bitangent for the 3 vertices of the triangle (to average after)
+
+		glm::vec3 N = mesh[i].Normal;
+
+		// Set normal to (0,0,1) when lenght is 0
+		if (glm::length(N) <= glm::epsilon<float>())
+		{
+			N = glm::vec3(0.0, 0.0, 1.0);
+		}
+
+		// Gram-Schmidt orthogonalization of tangent respect to normal and normalize tangent
+		T = T - (((glm::dot(T, N)) / (glm::length(N) * glm::length(N))) * N);
+
+
+		// Compute the new perpendicular bitangent maintaining the original handeness of the previously
+
+		if (glm::dot(B, glm::cross(N, T)) > 0)
+		{
+			B = glm::cross(N, T);
+		}
+		else
+		{
+			B = -(glm::cross(N, T));
+		}
+
+
+		// computed one (T,B,N need to be normalized and orthogonal at this point)
+
+		mesh[i].Bitangent = glm::normalize(B);
+		mesh[i].Tangent = glm::normalize(T);
+		mesh[i].Normal = glm::normalize(N);
+
+		mesh[i + 1].Bitangent = glm::normalize(B);
+		mesh[i + 1].Tangent = glm::normalize(T);
+		mesh[i + 1].Normal = glm::normalize(N);
+
+		mesh[i + 2].Bitangent = glm::normalize(B);
+		mesh[i + 2].Tangent = glm::normalize(T);
+		mesh[i + 2].Normal = glm::normalize(N);
+	}
+
+	// Loop through every vertex
+
+
+}
+
+void ComputeNormals(std::vector<MyVertex>& mesh)
+{
+	for (int i = 0; i < mesh.size(); i += 3)
+	{
+		mesh[i].Normal = ComputeNormal(mesh[i].Position, mesh[i + 1].Position, mesh[i + 2].Position);
+		mesh[i + 1].Normal = -(ComputeNormal(mesh[i + 1].Position, mesh[i].Position, mesh[i + 2].Position));
+		mesh[i + 2].Normal = -ComputeNormal(mesh[i + 2].Position, mesh[i + 1].Position, mesh[i].Position);
+
+		mesh[i].Normal = glm::normalize(mesh[i].Normal);
+		mesh[i + 1].Normal = glm::normalize(mesh[i + 1].Normal);
+		mesh[i + 2].Normal = glm::normalize(mesh[i + 2].Normal);
+
+	}
 }
 
 /**
@@ -569,6 +860,7 @@ std::vector<MyVertex> CreateCube()
 		cube.push_back(newVert36);
 	}
 
+
 	return cube;
 }
 
@@ -651,7 +943,7 @@ std::vector<MyVertex> CreateCone(int slices)
 	Bot.Position = bot;
 
 	//2 * PI
-	float pi = 2.0f * glm::pi<float>();
+	const float pi = (2.0f * glm::pi<float>());
 
 	//uv step
 	float XstepUV = 1/ static_cast<float>(slices);
@@ -751,7 +1043,7 @@ std::vector<MyVertex> CreateCylinder(int slices)
 	PrevTop.Position = prevposTop;
 
 	//2 * PI
-	float pi = 2.0f * glm::pi<float>();
+	const float pi = 2.0f * glm::pi<float>();
 
 	//UV step and uv
 	float XstepUV = 1 / static_cast<float>(slices);
@@ -803,7 +1095,7 @@ std::vector<MyVertex> CreateCylinder(int slices)
 
 		PrevTop.Normal = ComputeNormal(PrevTop.Position, NextBot.Position,PrevBot.Position );
 		PrevBot.Normal = ComputeNormal(PrevBot.Position, PrevTop.Position,NextBot.Position );
-		NextBot.Normal = ComputeNormal(NextBot.Position, NextBot.Position,PrevTop.Position );
+		NextBot.Normal = ComputeNormal(NextBot.Position, PrevBot.Position,PrevTop.Position );
 
 		PrevTop.Normal = glm::normalize(PrevTop.Normal);
 		PrevBot.Normal = glm::normalize(PrevBot.Normal);
@@ -852,9 +1144,9 @@ std::vector<MyVertex> CreateSphere(int slices)
 	float pi = glm::pi<float>();
 
 	//calculate subdivisions and angle steps
-	int verticalSub = floor(slices / 2.0f);
+	int verticalSub = static_cast<int>(floor(slices / 2.0f));
 	float vertAngleStep = pi / verticalSub; 
-	float horizAngleStep = (2.0 * pi) / slices;
+	float horizAngleStep = static_cast<float>((2.0 * pi) / slices);
 	float vertAngle = 0;
 	float horizAngle = 0;
 
@@ -867,11 +1159,6 @@ std::vector<MyVertex> CreateSphere(int slices)
 	MyVertex NextBot;
 	MyVertex NextTop;
 
-	float actualU = 0;
-	float actualV = 0;
-
-	float Ustep = 1.0  / slices;
-	float Vstep = 1.0 / verticalSub;
 
 
 
@@ -892,11 +1179,11 @@ std::vector<MyVertex> CreateSphere(int slices)
 
 
 			//get the UVs
-			NextBot.UV = glm::vec2(actualU + Ustep, actualV + Vstep);
-			NextTop.UV = glm::vec2(actualU + Ustep, actualV);
+			NextBot.UV = glm::vec2((horizAngle + horizAngleStep) / (2.0 * pi),  vertAngle/ pi);
+			NextTop.UV = glm::vec2((horizAngle + horizAngleStep) / (2.0 * pi),  (vertAngle + vertAngleStep)/ pi);
 
-			PrevTop.UV = glm::vec2(actualU, actualV);
-			PrevBot.UV = glm::vec2(actualU, actualV + Vstep);
+			PrevTop.UV = glm::vec2(horizAngle / (2.0 * pi),  (vertAngle + vertAngleStep)/ pi);
+			PrevBot.UV = glm::vec2(horizAngle / (2.0 * pi),  vertAngle/ pi);
 
 			//get the Normals
 			PrevBot.Normal = ComputeNormal(PrevBot.Position, PrevTop.Position, NextBot.Position);
@@ -934,8 +1221,6 @@ std::vector<MyVertex> CreateSphere(int slices)
 
 		//update horizontal Angle
 		horizAngle += horizAngleStep;
-		actualU += Ustep;
-		actualV += Vstep;
 
 	}
 	return Finalcylinder;
@@ -947,7 +1232,7 @@ std::vector<MyVertex> CreateSphere(int slices)
  * @param obj cube to get the normals from
  * @return std::vector<glm::vec4> vector of the normals
  */
-std::vector<glm::vec4> CubeAvgNormals(Mesh obj)
+std::vector<glm::vec4> CubeAvgNormals(Mesh& obj)
 {
 	//vector for positions
 	std::vector<glm::vec4> normals;
@@ -1029,7 +1314,7 @@ std::vector<glm::vec4> CubeAvgNormals(Mesh obj)
  * @param obj sphere to get the normals from
  * @return std::vector<glm::vec4> vector of normals
  */
-std::vector<glm::vec4> ShereAvgNormals(Mesh obj)
+std::vector<glm::vec4> ShereAvgNormals(Mesh& obj)
 {
 	//vector of positions
 	std::vector<glm::vec4> normals;
@@ -1055,84 +1340,127 @@ std::vector<glm::vec4> ShereAvgNormals(Mesh obj)
  * @param obj obj to get the normals from
  * @return std::vector<glm::vec4> vector of positions
  */
-std::vector<glm::vec4> GetAvgNormal(Mesh obj)
+void GetAvgNormal(Mesh& obj)
 {
-	//vector of positions
-	std::vector<glm::vec4> normals;
-
-	//special cases
-	if (obj.transform.mesh == "CUBE")
-	{
-		return CubeAvgNormals(obj);
-	}
-	if (obj.transform.mesh == "SPHERE")
-	{
-		return ShereAvgNormals(obj);
-	}
-
-	std::vector<glm::vec4> positions;
+	obj.BiTangentsToDraw.clear();
+	obj.TangentToDraw.clear();
+	obj.NormalsToDraw.clear();
 
 	//go through all the Positions 
 	for (unsigned int i = 0; i < obj.mesh.size(); i++)
 	{
-		//vector to store the normals of that position
-		std::vector< glm::vec3 > NorPerPos;
-
 		//store the position
 		glm::vec4 pos = obj.mesh[i].Position;
+		std::vector<glm::vec4> Normals;
+		std::vector<glm::vec4> Tangents;
+		std::vector<glm::vec4> BiTangents;
+		Normals.push_back(glm::uvec4(obj.mesh[i].Normal, 1.0));
 
-		bool positionChecked = false;
-
-		//find if this pos has beenchecked
-		for (unsigned int j =  i + 1; j < positions.size(); j++)
+		//iterate through the mesh again
+		for (unsigned int j = 0; j < obj.mesh.size(); j++)
 		{
-			if (pos == positions[j])
+			//same vertex
+			if (obj.mesh[j].Position == pos)
 			{
-				positionChecked = true;
-			}
-		}
-
-		if (positionChecked == false)
-		{
-			positions.push_back(pos);
-	
-			//iterate through the mehs again
-			for (unsigned int j = 0; j < obj.mesh.size(); j++)
-			{
-				//find all the vertices with the same position
-				if (obj.mesh[j].Position == pos)
+				bool newNormal = true; 
+				//check if same normal is stored
+				for (int k = 0; k < Normals.size(); k++)
 				{
-					//if the normal is not already in the vector push it back
-					bool push = true;
-					
-					if (push == true && obj.mesh[j].Normal.x < 1000 && obj.mesh[j].Normal.x > -10000)
+					if (glm::vec4(obj.mesh[j].Normal, 1.0) == Normals[k])
 					{
-						NorPerPos.push_back(obj.mesh[j].Normal);
+						newNormal = false;
 					}
 				}
+				if (newNormal)
+				{
+					Normals.push_back(glm::uvec4(obj.mesh[j].Normal, 1.0));
+					Tangents.push_back(glm::uvec4(obj.mesh[j].Tangent, 1.0));
+					BiTangents.push_back(glm::uvec4(obj.mesh[j].Bitangent, 1.0));
+				}
 			}
-	
-			glm::vec3 AvgNorm(0.0, 0.0, 0.0);
-	
-			//get the average normal and store it
-			for (auto it = NorPerPos.begin(); it != NorPerPos.end(); it++)
-			{
-				AvgNorm += *it;
-			}
-	
-			AvgNorm /= NorPerPos.size();
-	
-			AvgNorm = glm::normalize(AvgNorm);
-	
-			normals.push_back(pos);
-			normals.push_back(pos + glm::vec4(AvgNorm.x, AvgNorm.y, AvgNorm.z, 1.0f));
 		}
 
-		
+		glm::vec4 AvgNorm(0.0, 0.0, 0.0, 0.0);
+		glm::vec4 AvgTan(0.0, 0.0, 0.0, 0.0);
+		glm::vec4 AvgBiTan(0.0, 0.0, 0.0, 0.0);
+
+		//get the average normal and store it
+		for (auto it = Normals.begin(); it != Normals.end(); it++)
+		{
+			AvgNorm += *it;
+		}
+		for (auto it = Tangents.begin(); it != Tangents.end(); it++)
+		{
+			AvgTan += *it;
+		}
+		for (auto it = BiTangents.begin(); it != BiTangents.end(); it++)
+		{
+			AvgBiTan += *it;
+		}
+
+		AvgNorm /= Normals.size();
+		AvgNorm = glm::normalize(AvgNorm);
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgNormal = AvgNorm;
+
+		AvgTan /= Tangents.size();
+		AvgTan = glm::normalize(AvgTan);
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgTangent = AvgTan;
+
+		AvgBiTan /= BiTangents.size();
+		AvgBiTan = glm::normalize(AvgBiTan);
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgBitangent = AvgBiTan;
 
 	}
+}
 
-	return normals;
+void TangetBitangentToDraw(Mesh& obj, bool drawAverage)
+{
+	obj.BiTangentsToDraw.clear();
+	obj.TangentToDraw.clear();
+
+	for (int i = 0; i < obj.mesh.size(); i++)
+	{
+		glm::vec4 position;
+		glm::vec3 bitangent;
+		glm::vec3 tangent;
+
+		if (drawAverage)
+		{
+			position = obj.mesh[i].Position;
+			bitangent = obj.mesh[i].AvgBitangent;
+			tangent = obj.mesh[i].AvgTangent;
+		}
+		else
+		{
+			position = obj.mesh[i].Position;
+			bitangent = obj.mesh[i].Bitangent;
+			tangent = obj.mesh[i].Tangent;
+		}
+		
+
+		glm::vec4 tangentEnd(position.x + (tangent.x / 2.0), position.y + (tangent.y / 2.0), position.z + (tangent.z / 2.0), 1.0f);
+		glm::vec4 bitangentEnd(position.x + (bitangent.x / 2.0), position.y + (bitangent.y / 2.0), position.z + (bitangent.z / 2.0), 1.0f);
+
+		tangentEnd = position + tangentEnd;
+		tangentEnd = glm::normalize(tangentEnd);
+
+		bitangentEnd = position + bitangentEnd;
+		bitangentEnd = glm::normalize(bitangentEnd);
+
+
+		obj.BiTangentsToDraw.push_back(position);
+		obj.BiTangentsToDraw.push_back(bitangentEnd);
+
+
+		obj.TangentToDraw.push_back(position);
+		obj.TangentToDraw.push_back(tangentEnd);
+	}
+	
+
+
 }
 
 /**
@@ -1141,20 +1469,33 @@ std::vector<glm::vec4> GetAvgNormal(Mesh obj)
  * @param obj object to take the positions from
  * @return std::vector<glm::vec4> vector of positions
  */
-std::vector<glm::vec4> GetNormalVec(Mesh obj)
+void GetNormalVec(Mesh& obj, bool drawAverage)
 {
 	//vector of positions
 	std::vector<glm::vec4> normals;
+
+	obj.NormalsToDraw.clear();
 
 	//go through all the mesh
 	for (unsigned int i = 0; i < obj.mesh.size(); i++)
 	{
 		//get the position of the vertex and its normal
-		glm::vec4 position = obj.mesh[i].Position;
-		glm::vec3 normal = obj.mesh[i].Normal;
+		glm::vec4 position;
+		glm::vec3 normal;
+
+		if (drawAverage)
+		{
+			position = obj.mesh[i].Position;
+			normal = obj.mesh[i].AvgNormal;
+		}
+		else
+		{
+			position = obj.mesh[i].Position;
+			normal = obj.mesh[i].Normal;
+		}
 
 		//push back the position
-		normals.push_back(position);
+		obj.NormalsToDraw.push_back(position);
 
 		//push back position + normal
 		glm::vec4 normalEnd(position.x + (normal.x / 2.0), position.y + (normal.y / 2.0), position.z + (normal.z / 2.0), 1.0f);
@@ -1162,11 +1503,8 @@ std::vector<glm::vec4> GetNormalVec(Mesh obj)
 		normalEnd = glm::normalize(normalEnd); 
 
 
-		normals.push_back(( normalEnd / 4.0f));
-
+		obj.NormalsToDraw.push_back(( normalEnd / 4.0f));
 	}
-
-	return normals;
 }
 
 /**
@@ -1205,9 +1543,9 @@ std::vector<MyVertex> SceneObjs::LoadTinyObj(const char* filename)
 		MyVertex newVert;
 		tinyobj::index_t indice = myshape.mesh.indices[i];
 
-		newVert.Position = glm::vec4(atributes.vertices[3 * indice.vertex_index], atributes.vertices[3 * indice.vertex_index + 1], atributes.vertices[3 * indice.vertex_index + 2], 1.0f);
-		newVert.Normal = glm::vec3(atributes.normals[3 * indice.normal_index], atributes.normals[3 * indice.normal_index + 1], atributes.normals[3 * indice.normal_index + 2]);
-		newVert.UV = glm::vec2(atributes.texcoords[2 * indice.texcoord_index], atributes.texcoords[2 * indice.texcoord_index + 1]);
+		newVert.Position = glm::vec4(atributes.vertices[static_cast<unsigned int>(3 * indice.vertex_index)], atributes.vertices[(3 * indice.vertex_index + 1)], atributes.vertices[3 * indice.vertex_index + 2], 1.0f);
+		newVert.Normal = glm::vec3(atributes.normals[static_cast<unsigned int>(3 * indice.normal_index)], atributes.normals[3 * indice.normal_index + 1], atributes.normals[3 * indice.normal_index + 2]);
+		newVert.UV = glm::vec2(atributes.texcoords[static_cast<unsigned int>(2 * indice.texcoord_index)], atributes.texcoords[2 * indice.texcoord_index + 1]);
 		mesh.push_back(newVert);
 	}
 

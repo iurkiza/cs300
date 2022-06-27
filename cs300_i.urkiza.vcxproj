@@ -95,6 +95,8 @@
     <ClCompile Include="src\Vertex.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\stb\stb_image.h" />
+    <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="src\Animations.h" />
     <ClInclude Include="src\Parser\CS300Parser.h" />
     <ClInclude Include="src\OGLDebug.h" />
