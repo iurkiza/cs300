@@ -200,6 +200,8 @@ void Mesh::InitializeHeightMap()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+	stbi_image_free(tex);
+
 }
 
 /**
@@ -221,6 +223,27 @@ void SceneObjs::ReoadMeshes()
 	{
 		//If it´s the shape we want reload the normals, the mesh and 
 		//initialize the buffers again
+		if (objects[i].transform.mesh == "PLANE")
+		{
+			if (avgNormals)
+			{
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], true);
+				TangetBitangentToDraw(objects[i], true);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(true);
+			}
+			else
+			{
+				ComputeTangentBitangent(objects[i].mesh);
+				GetAvgNormal(objects[i]);
+				GetNormalVec(objects[i], false);
+				TangetBitangentToDraw(objects[i], false);
+				//Initialize VAO and VBO
+				objects[i].InitializeBuffers(false);
+			}
+		}
 		if (objects[i].transform.mesh == "CUBE")
 		{
 			if (avgNormals)
@@ -361,6 +384,7 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 			TangetBitangentToDraw(newobj, true);
 			//Initialize VAO and VBO
 			newobj.InitializeBuffers(true);
+
 			newobj.InitializeHeightMap();
 		}
 		else if (newobj.transform.mesh == "CONE")
@@ -483,6 +507,8 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 		newLight.inner = parser.lights[i].inner;
 		newLight.outer = parser.lights[i].outer;
 		newLight.type = parser.lights[i].type;
+		newLight.bias = parser.lights[i].bias;
+		newLight.pcf = parser.lights[i].pcf;
 
 		newLight.mesh = LoadTinyObj("data/meshes/sphere_20_face.obj");
 
@@ -1351,22 +1377,25 @@ void GetAvgNormal(Mesh& obj)
 	{
 		//store the position
 		glm::vec4 pos = obj.mesh[i].Position;
-		std::vector<glm::vec4> Normals;
-		std::vector<glm::vec4> Tangents;
-		std::vector<glm::vec4> BiTangents;
-		Normals.push_back(glm::uvec4(obj.mesh[i].Normal, 1.0));
+		std::vector<glm::vec3> Normals;
+		std::vector<glm::vec3> Tangents;
+		std::vector<glm::vec3> BiTangents;
+
+		Normals.push_back(obj.mesh[i].Normal);
+		Tangents.push_back(obj.mesh[i].Tangent);
+		BiTangents.push_back(obj.mesh[i].Bitangent);
 
 		//iterate through the mesh again
 		for (unsigned int j = 0; j < obj.mesh.size(); j++)
 		{
 			//same vertex
-			if (obj.mesh[j].Position == pos)
+			if (obj.mesh[j].Position.x - pos.x <= glm::epsilon<float>() && obj.mesh[j].Position.y - pos.y <= glm::epsilon<float>() && obj.mesh[j].Position.z - pos.z <= glm::epsilon<float>())
 			{
 				bool newNormal = true; 
 				//check if same normal is stored
 				for (int k = 0; k < Normals.size(); k++)
 				{
-					if (glm::vec4(obj.mesh[j].Normal, 1.0) == Normals[k])
+					if ((obj.mesh[j].Normal) == Normals[k])
 					{
 						newNormal = false;
 					}
@@ -1380,38 +1409,38 @@ void GetAvgNormal(Mesh& obj)
 			}
 		}
 
-		glm::vec4 AvgNorm(0.0, 0.0, 0.0, 0.0);
-		glm::vec4 AvgTan(0.0, 0.0, 0.0, 0.0);
-		glm::vec4 AvgBiTan(0.0, 0.0, 0.0, 0.0);
+		glm::vec3 AvgNorm(0.0, 0.0, 0.0);
+		glm::vec3 AvgTan(0.0, 0.0, 0.0);
+		glm::vec3 AvgBiTan(0.0, 0.0, 0.0);
 
 		//get the average normal and store it
 		for (auto it = Normals.begin(); it != Normals.end(); it++)
 		{
 			AvgNorm += *it;
 		}
-		for (auto it = Tangents.begin(); it != Tangents.end(); it++)
-		{
-			AvgTan += *it;
-		}
-		for (auto it = BiTangents.begin(); it != BiTangents.end(); it++)
-		{
-			AvgBiTan += *it;
-		}
+		//for (auto it = Tangents.begin(); it != Tangents.end(); it++)
+		//{
+		//	AvgTan += *it;
+		//}
+		//for (auto it = BiTangents.begin(); it != BiTangents.end(); it++)
+		//{
+		//	AvgBiTan += *it;
+		//}
 
 		AvgNorm /= Normals.size();
 		AvgNorm = glm::normalize(AvgNorm);
-		//AvgNorm = -AvgNorm;
-		obj.mesh[i].AvgNormal = AvgNorm;
-
-		AvgTan /= Tangents.size();
-		AvgTan = glm::normalize(AvgTan);
-		//AvgNorm = -AvgNorm;
-		obj.mesh[i].AvgTangent = AvgTan;
-
-		AvgBiTan /= BiTangents.size();
-		AvgBiTan = glm::normalize(AvgBiTan);
-		//AvgNorm = -AvgNorm;
-		obj.mesh[i].AvgBitangent = AvgBiTan;
+		////AvgNorm = -AvgNorm;
+		//obj.mesh[i].AvgNormal = AvgNorm;
+		//
+		//AvgTan /= Tangents.size();
+		//AvgTan = glm::normalize(AvgTan);
+		////AvgNorm = -AvgNorm;
+		////obj.mesh[i].AvgTangent = AvgTan;
+		//
+		//AvgBiTan /= BiTangents.size();
+		//AvgBiTan = glm::normalize(AvgBiTan);
+		////AvgNorm = -AvgNorm;
+		////obj.mesh[i].AvgBitangent = AvgBiTan;
 
 	}
 }
@@ -1543,8 +1572,8 @@ std::vector<MyVertex> SceneObjs::LoadTinyObj(const char* filename)
 		MyVertex newVert;
 		tinyobj::index_t indice = myshape.mesh.indices[i];
 
-		newVert.Position = glm::vec4(atributes.vertices[static_cast<unsigned int>(3 * indice.vertex_index)], atributes.vertices[(3 * indice.vertex_index + 1)], atributes.vertices[3 * indice.vertex_index + 2], 1.0f);
-		newVert.Normal = glm::vec3(atributes.normals[static_cast<unsigned int>(3 * indice.normal_index)], atributes.normals[3 * indice.normal_index + 1], atributes.normals[3 * indice.normal_index + 2]);
+		newVert.Position = glm::vec4(atributes.vertices[(3 * static_cast<int>(indice.vertex_index))], atributes.vertices[(3 * indice.vertex_index + 1)], atributes.vertices[3 * indice.vertex_index + 2], 1.0f);
+		newVert.Normal = glm::vec3(atributes.normals[(3 * static_cast<int>(indice.normal_index))], atributes.normals[3 * indice.normal_index + 1], atributes.normals[3 * indice.normal_index + 2]);
 		newVert.UV = glm::vec2(atributes.texcoords[static_cast<unsigned int>(2 * indice.texcoord_index)], atributes.texcoords[2 * indice.texcoord_index + 1]);
 		mesh.push_back(newVert);
 	}

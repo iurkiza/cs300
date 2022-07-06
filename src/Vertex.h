@@ -95,6 +95,8 @@ public:
 	float     inner = 0.0f;
 	float     outer = 30.0f;
 	float     falloff = 1.0f;
+	float     bias = 0.0f;
+	unsigned  pcf = 0;
 
 	std::string type = "POINT";
 

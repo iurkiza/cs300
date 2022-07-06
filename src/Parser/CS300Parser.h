@@ -48,6 +48,8 @@ class CS300Parser
         float     inner   = 0.0f;
         float     outer   = 30.0f;
         float     falloff = 1.0f;
+        float     bias    = 0.0f;
+        unsigned  pcf     = 0;
 
         std::string type = "POINT";
 
@@ -57,5 +59,6 @@ class CS300Parser
 
   private:
     static float     ReadFloat(std::ifstream & f);
+    static int       ReadInt(std::ifstream & f);
     static glm::vec3 ReadVec3(std::ifstream & f);
 };

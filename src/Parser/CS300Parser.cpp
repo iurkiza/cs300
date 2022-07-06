@@ -10,6 +10,13 @@ float CS300Parser::ReadFloat(std::ifstream & f)
     return static_cast<float>(std::atof(str.c_str()));
 }
 
+int CS300Parser::ReadInt(std::ifstream & f)
+{
+    std::string str;
+    f >> str;
+    return std::atoi(str.c_str());
+}
+
 glm::vec3 CS300Parser::ReadVec3(std::ifstream & f)
 {
     float x = ReadFloat(f);
@@ -219,6 +226,24 @@ void CS300Parser::LoadDataFromFile(const char * filename)
                 lights.back().inner   = spotAtt.x;
                 lights.back().outer   = spotAtt.y;
                 lights.back().falloff = spotAtt.z;
+            }
+        }
+        else if (id == "bias")
+        {
+            float bias = ReadFloat(inFile);
+
+            if (lights.size() > 0)
+            {
+                lights.back().bias = bias;
+            }
+        }
+        else if (id == "pcf")
+        {
+            int pcf = ReadInt(inFile);
+
+            if (lights.size() > 0)
+            {
+                lights.back().pcf = pcf;
             }
         }
         else if (Animations::NameToUpdater.find(id) != Animations::NameToUpdater.end())

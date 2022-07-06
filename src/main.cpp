@@ -18,9 +18,12 @@ static int     winID;
 static GLsizei WIDTH = 1280;
 static GLsizei HEIGHT = 720;
 static GLuint theProgram;
+static GLuint shadowProgram;
 static GLuint texture;
+static GLuint depthTex;
+static GLuint shadowFBO;
 static bool wireframeMode;
-static bool textureMap;
+static int textureMap;
 static bool drawNormals;
 static bool normalColor;
 static bool tangentColor;
@@ -80,11 +83,76 @@ void UpdatePositions(Mesh& obj)
 //You should call SDL_GL_SwapWindow after all of your rendering to display what you rendered.
 void display(SDL_Window* window, SceneObjs& scene)
 {
+	int shadowMapWidth = 1024;
+	int shadowMapHeight = 1024;
+	
 	itsALight = false;
 	light = false;
+	Light myLight = scene.lights[0];
+	//
+	glViewport(0, 0, shadowMapWidth, shadowMapHeight);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	// Bind the frame buffer containing the shadow map
+	// Clear it
+	glClear(GL_DEPTH_BUFFER_BIT);
+	// Enable front-face culling
+	glCullFace(GL_FRONT);
+
+	
+
 	for (unsigned i = 0; i < scene.objects.size(); i++)
 	{
 		UpdatePositions(scene.objects[i]);
+		//get the transformations
+		glm::mat4 lightprojection = glm::perspective(glm::radians(myLight.outer * 2.0f), static_cast<float>(shadowMapWidth / shadowMapHeight), 1.0f, 500.0f);
+
+		glm::mat4 lightView = glm::lookAt(myLight.pos, myLight.pos + myLight.dir, Camera::camUp);
+
+		glm::mat4 Model = glm::translate(glm::mat4(1.0f), scene.objects[i].transform.pos) *
+			(glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.z), glm::vec3(0.0f, 0.0f, 1.0f)) *
+				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
+				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f))) *
+			glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
+
+		//get the MVP
+		glm::mat4 lightMVP = lightprojection * lightView * Model;
+
+		glUseProgram(shadowProgram);
+		glBindVertexArray(scene.objects[i].VAO);
+
+		//uniform of M2W
+		int ViewLoc = glGetUniformLocation(shadowProgram, "u_LightView");
+		glUniformMatrix4fv(ViewLoc, 1, GL_FALSE, &lightView[0][0]);
+
+		//uniform of M2W
+		int M2Wloc = glGetUniformLocation(shadowProgram, "u_M2W");
+		glUniformMatrix4fv(M2Wloc, 1, GL_FALSE, &Model[0][0]);
+
+		//uniform of M2W
+		int projLoc = glGetUniformLocation(shadowProgram, "u_ligjtProjection");
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, &lightprojection[0][0]);
+
+		//uniform of MVP
+		int location = glGetUniformLocation(shadowProgram, "u_lightMVP");
+		glUniformMatrix4fv(location, 1, GL_FALSE, &lightMVP[0][0]);
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scene.objects[i].mesh.size()));
+
+
+		glUseProgram(0);
+
+	}
+	glViewport(0, 0, WIDTH, HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glCullFace(GL_BACK);
+
+	for (unsigned i = 0; i < scene.objects.size(); i++)
+	{
+		glm::mat4 lightprojection = glm::perspective(glm::radians(myLight.outer * 2.0f), static_cast<float>(shadowMapWidth / shadowMapHeight), 1.0f, 500.0f);
+
+		glm::mat4 lightView = glm::lookAt(myLight.pos, myLight.pos + myLight.dir, Camera::camUp);
+
 		//get the transformations
 		glm::mat4 projection = glm::perspective(glm::radians(Camera::fovy), Camera::width / Camera::height, Camera::nearPlane, Camera::farPlane);
 
@@ -95,6 +163,8 @@ void display(SDL_Window* window, SceneObjs& scene)
 				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.y), glm::vec3(0.0f, 1.0f, 0.0f)) *
 				glm::rotate(glm::mat4(1.0f), glm::radians(scene.objects[i].transform.rot.x), glm::vec3(1.0f, 0.0f, 0.0f))) *
 				glm::scale(glm::mat4(1.0f), scene.objects[i].transform.sca);
+
+
 
 		//get the MVP
 		glm::mat4 MVP = projection * View * Model;
@@ -116,17 +186,29 @@ void display(SDL_Window* window, SceneObjs& scene)
 		int location = glGetUniformLocation(theProgram, "u_MVP");
 		glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
 
+		//uniform of M2W
+		int projLoc = glGetUniformLocation(theProgram, "u_ligjtProjection");
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, &lightprojection[0][0]);
+
+		int LightViewLoc = glGetUniformLocation(theProgram, "u_LightView");
+		glUniformMatrix4fv(LightViewLoc, 1, GL_FALSE, &lightView[0][0]);
+
 		//uniform of texture bool
 		int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
-		int TexValue = textureMap;
 		glUniform1i(textureLoc, textureMap);
+
+		int biasLoc = glGetUniformLocation(theProgram, "u_bias");
+		glUniform1f(biasLoc, scene.lights[0].bias);
+		
+		int pcfLoc = glGetUniformLocation(theProgram, "u_pcf");
+		glUniform1i(pcfLoc, scene.lights[0].pcf);
 
 
 		//PASS THE LIGHT TO THE SHADER
 		
 		//number of lights
 		int numoflights = glGetUniformLocation(theProgram, "uLightNum");
-		glUniform1i(numoflights, scene.lights.size());
+		glUniform1i(numoflights, static_cast<GLint>(scene.lights.size()));
 
 		for (unsigned int j = 0; j < scene.lights.size(); j++)
 		{
@@ -192,22 +274,29 @@ void display(SDL_Window* window, SceneObjs& scene)
 		int textureLocalization = glGetUniformLocation(theProgram, "u_Texture");
 		glUniform1i(textureLocalization, 0);
 
-		//set the texture and pass it to the shader
+		//set the height map and pass it to the shader
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, scene.objects[i].normalMap);
 		int heightmapLoc = glGetUniformLocation(theProgram, "u_heightMap");
 		glUniform1i(heightmapLoc, 1);
 
+		//set the height map and pass it to the shader
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, depthTex);
+		int shadowmapLoc = glGetUniformLocation(theProgram, "u_shadowMap");
+		glUniform1i(shadowmapLoc, 2);
+
+
 		// Draw
 		if (!wireframeMode)
 		{
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			glDrawArrays(GL_TRIANGLES, 0, scene.objects[i].mesh.size());
+			glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scene.objects[i].mesh.size()));
 		}
 		else if (wireframeMode)
 		{
 			glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
-			glDrawArrays(GL_TRIANGLES, 0, scene.objects[i].mesh.size());
+			glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scene.objects[i].mesh.size()));
 		}
 
 		// Unbind
@@ -225,7 +314,7 @@ void display(SDL_Window* window, SceneObjs& scene)
 			
 
 			glBindVertexArray(scene.objects[i].NormalVAO);
-			glDrawArrays(GL_LINES, 0, scene.objects[i].NormalsToDraw.size());
+			glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(scene.objects[i].NormalsToDraw.size()));
 
 			// Unbind
 			glBindVertexArray(0);
@@ -238,7 +327,7 @@ void display(SDL_Window* window, SceneObjs& scene)
 			glUniform1i(glGetUniformLocation(theProgram, "u_TangentCol"), tangentColor);
 			
 			glBindVertexArray(scene.objects[i].TangentVAO);
-			glDrawArrays(GL_LINES, 0, scene.objects[i].TangentToDraw.size());
+			glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(scene.objects[i].TangentToDraw.size()));
 
 
 			// Unbind
@@ -251,7 +340,7 @@ void display(SDL_Window* window, SceneObjs& scene)
 			glUniform1i(glGetUniformLocation(theProgram, "u_BitangentCol"), bitangentColor);
 
 			glBindVertexArray(scene.objects[i].BitangentVAO);
-			glDrawArrays(GL_LINES, 0, scene.objects[i].BiTangentsToDraw.size());
+			glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(scene.objects[i].BiTangentsToDraw.size()));
 
 
 			// Unbind
@@ -293,7 +382,6 @@ void display(SDL_Window* window, SceneObjs& scene)
 
 		//uniform of texture bool
 		int textureLoc = glGetUniformLocation(theProgram, "u_TextureBool");
-		int TexValue = textureMap;
 		glUniform1i(textureLoc, textureMap);
 
 
@@ -312,12 +400,12 @@ void display(SDL_Window* window, SceneObjs& scene)
 		if (!wireframeMode)
 		{
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			glDrawArrays(GL_TRIANGLES, 0, scene.lights[i].mesh.size());
+			glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scene.lights[i].mesh.size()));
 		}
 		else if (wireframeMode)
 		{
 			glPolygonMode(GL_FRONT, GL_LINE); glPolygonMode(GL_BACK, GL_LINE);
-			glDrawArrays(GL_TRIANGLES, 0, scene.lights[i].mesh.size());
+			glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(scene.lights[i].mesh.size()));
 		}
 
 		// Unbind
@@ -373,6 +461,42 @@ GLuint LoadTexture()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+
+	//SHADOW MAP
+
+	int shadowMapWidth = 1024;
+	int shadowMapHeight = 1024;
+
+	glGenTextures(1, &depthTex);
+	glBindTexture(GL_TEXTURE_2D, depthTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapWidth,
+		shadowMapHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+	// Create and set up the FBO
+	glGenFramebuffers(1, &shadowFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		GL_TEXTURE_2D, depthTex, 0);
+
+	GLenum drawBuffers[] = { GL_NONE };
+	glDrawBuffers(1, drawBuffers);
+
+	GLenum result = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (result == GL_FRAMEBUFFER_COMPLETE) {
+		printf("Framebuffer is complete.\n");
+	}
+	else {
+		printf("Framebuffer is not complete.\n");
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
 	return texture;
 }
@@ -453,17 +577,16 @@ int main(int argc, char* args[])
 	glDepthRange(0.f, 1.f);
 	glEnable(GL_CLAMP);
 
-	textureMap = false;
 	drawNormals = false;
 	wireframeMode = false;
 
 	//get the shaders and set them
 	theProgram = ShaderUtils::CreateShaderProgram("data/vertshader.vert", "data/fragShader.frag");
-	//glUseProgram(theProgram);
+	shadowProgram = ShaderUtils::CreateShaderProgram("data/shadowVertex.vert", "data/shadowFragment.frag");
 	
 	//Initialize the parser
 	CS300Parser parser;
-	parser.LoadDataFromFile("data/scene_A2.txt");
+	parser.LoadDataFromFile("data/scene_A3.txt");
 	
 	//get the camera data
 	Camera camera;
@@ -545,13 +668,10 @@ int main(int argc, char* args[])
 				}
 				if (event.key.keysym.scancode == SDL_SCANCODE_T)
 				{
-					if (textureMap)
+					textureMap++;
+					if (textureMap == 4)
 					{
-						textureMap = false;
-					}
-					else if (!textureMap)
-					{
-						textureMap = true;
+						textureMap = 0;
 					}
 				}
 				if (event.key.keysym.scancode == SDL_SCANCODE_N)
@@ -593,6 +713,8 @@ int main(int argc, char* args[])
 		SDL_GL_SwapWindow(window);
 
 	}
+
+	
 
 	cleanup(theProgram, Scene);
 

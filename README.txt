@@ -2,9 +2,9 @@
 Copyright (C) 2022 DigiPen Institute of Technology.
 Reproduction or disclosure of this file or its contents without the prior written
 consent of DigiPen Institute of Technology is prohibited.
-Project: cs300_i.urkiza_2
+Project: cs300_i.urkiza_3
 Author: Ibon Urkiza, i.urkiza, 54000320
-Creation date: 12/06/2022
+Creation date: 28/06/2022
 ----------------------------------------------------------------------------------------------------------*/
 
 -How to run the program: The program is in x64. When I first execute it It takes time to load it. I dont know why it happens
@@ -17,11 +17,17 @@ D: move the camera towards the left rotating around the target.
 E: move the camera away from the target.
 Q: move the camera closer to the target.
 N: Toggle normal rendering
-T: Toggle texture-mapping on/off
+T: Change between rendering modes:
+	• Normal Mapping: Scene with lighting and normal mapping with checkerboard
+          texture
+	• Normal: Geometry normal in camera space as color
+	• Tangent: Geometry tangent in camera space as color
+	• Bitangent: Geometry bitangent in camera space as color
+
 F: Toggle face/averaged normal
 M: Toggle wireframe on/off
 O/P: Increase/reduce number of slices (4 is the minimum number of slices)
 
 -Important parts of the code: The cpp which contains most of the functions is Vertex cpp. I have a class called Mesh which contains a transform, handles for the VBO and VAOs a vector of Vertexes(Position, normal and UV) and a vector of normals. The rest of the functions are to Load the meshes, generate the normal vector (averaged, or normal) and 
 other helper functions.
--Known issues and problems: The sphere i generated does not look well. Also the averaged normals are wrong.
+-Known issues and problems: The averaged normals are wrong.
