@@ -1,0 +1,43 @@
+
+#camera data
+fovy 60.0
+width 1280.0
+height 720.0
+near 1
+far 500
+camPosition 0 0 -20
+camTarget 0 0 30
+camUp 0 1 0
+    
+#scene data
+object sphere
+translate 0 0 30
+rotation 0 0 0
+scale 20 20 20
+mesh SPHERE
+orbit 0 0 20
+reflector 2
+
+object cone
+translate 40 0 50
+rotation 0 0 0
+scale 10 10 10
+mesh CONE
+sinusoidal 1 3 30
+
+object suzanne
+translate -40 0 20
+rotation 0 0 0
+scale 10 10 10
+mesh data/meshes/suzanne.obj
+
+object cube
+translate 0 50 80
+rotation 0 0 0
+scale 10 10 10
+mesh CUBE
+sinusoidal 0 1 30
+
+#environment
+#envMap data/textures/CottonCandy_Right.png data/textures/CottonCandy_Left.png data/textures/CottonCandy_Top.png data/textures/CottonCandy_Bottom.png data/textures/CottonCandy_Front.png data/textures/CottonCandy_Back.png
+envMap data/textures/CubeMap_Right.png data/textures/CubeMap_Left.png data/textures/CubeMap_Top.png data/textures/CubeMap_Bottom.png data/textures/CubeMap_Front.png data/textures/CubeMap_Back.png

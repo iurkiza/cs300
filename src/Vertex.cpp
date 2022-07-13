@@ -7,7 +7,6 @@
  * @date 2022-05-31
  * 
  */
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 #include "Vertex.h"
 #include "glm/gtc/matrix_transform.hpp"
@@ -112,9 +111,6 @@ void Mesh::InitializeBuffers(bool avgTangents)
 		glEnableVertexAttribArray(4);
 		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Bitangent)));
 	}
-	
-
-	
 
 	//unbind
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -361,6 +357,10 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 		newobj.transform.sca = parser.objects[i].sca;
 		newobj.transform.anims = parser.objects[i].anims;
 		newobj.transform.normalMap = parser.objects[i].normalMap;
+		newobj.transform.ns = parser.objects[i].ns;
+		newobj.transform.ior = parser.objects[i].ior;
+		newobj.transform.reflector = parser.objects[i].reflector;
+
 
 		//depending which object is, load its mesh and normals
 		if (newobj.transform.mesh == "PLANE")
@@ -516,6 +516,10 @@ void SceneObjs::LoadObjects(CS300Parser parser)
 
 		lights.push_back(newLight);
 	}
+
+	environmentMap = parser.environmentMap;
+
+	reflective = &objects[0];
 
 }
 
@@ -1340,10 +1344,9 @@ std::vector<glm::vec4> CubeAvgNormals(Mesh& obj)
  * @param obj sphere to get the normals from
  * @return std::vector<glm::vec4> vector of normals
  */
-std::vector<glm::vec4> ShereAvgNormals(Mesh& obj)
+void ShereAvgNormals(Mesh& obj)
 {
-	//vector of positions
-	std::vector<glm::vec4> normals;
+	
 	
 	//iterate through all the points and get the normals
 	for (unsigned int i = 0; i < obj.mesh.size(); i++)
@@ -1352,12 +1355,10 @@ std::vector<glm::vec4> ShereAvgNormals(Mesh& obj)
 		nor1 = glm::normalize(nor1);
 
 		//push back the positions
-		normals.push_back(obj.mesh[i].Position);
-		normals.push_back(obj.mesh[i].Position + (nor1 / 4.0f));
-
+		obj.mesh[i].AvgNormal = nor1;
 	}
 
-	return normals;
+	return;
 }
 
 /**
@@ -1371,6 +1372,12 @@ void GetAvgNormal(Mesh& obj)
 	obj.BiTangentsToDraw.clear();
 	obj.TangentToDraw.clear();
 	obj.NormalsToDraw.clear();
+
+	if (obj.transform.mesh == "SPHERE")
+	{
+		ShereAvgNormals(obj);
+		return;
+	}
 
 	//go through all the Positions 
 	for (unsigned int i = 0; i < obj.mesh.size(); i++)
@@ -1393,13 +1400,13 @@ void GetAvgNormal(Mesh& obj)
 			{
 				bool newNormal = true; 
 				//check if same normal is stored
-				for (int k = 0; k < Normals.size(); k++)
-				{
-					if ((obj.mesh[j].Normal) == Normals[k])
-					{
-						newNormal = false;
-					}
-				}
+				//for (int k = 0; k < Normals.size(); k++)
+				//{
+				//	if ((obj.mesh[j].Normal) == Normals[k])
+				//	{
+				//		newNormal = false;
+				//	}
+				//}
 				if (newNormal)
 				{
 					Normals.push_back(glm::uvec4(obj.mesh[j].Normal, 1.0));
@@ -1418,29 +1425,29 @@ void GetAvgNormal(Mesh& obj)
 		{
 			AvgNorm += *it;
 		}
-		//for (auto it = Tangents.begin(); it != Tangents.end(); it++)
-		//{
-		//	AvgTan += *it;
-		//}
-		//for (auto it = BiTangents.begin(); it != BiTangents.end(); it++)
-		//{
-		//	AvgBiTan += *it;
-		//}
+		for (auto it = Tangents.begin(); it != Tangents.end(); it++)
+		{
+			AvgTan += *it;
+		}
+		for (auto it = BiTangents.begin(); it != BiTangents.end(); it++)
+		{
+			AvgBiTan += *it;
+		}
 
 		AvgNorm /= Normals.size();
 		AvgNorm = glm::normalize(AvgNorm);
-		////AvgNorm = -AvgNorm;
-		//obj.mesh[i].AvgNormal = AvgNorm;
-		//
-		//AvgTan /= Tangents.size();
-		//AvgTan = glm::normalize(AvgTan);
-		////AvgNorm = -AvgNorm;
-		////obj.mesh[i].AvgTangent = AvgTan;
-		//
-		//AvgBiTan /= BiTangents.size();
-		//AvgBiTan = glm::normalize(AvgBiTan);
-		////AvgNorm = -AvgNorm;
-		////obj.mesh[i].AvgBitangent = AvgBiTan;
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgNormal = AvgNorm;
+		
+		AvgTan /= Tangents.size();
+		AvgTan = glm::normalize(AvgTan);
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgTangent = AvgTan;
+		
+		AvgBiTan /= BiTangents.size();
+		AvgBiTan = glm::normalize(AvgBiTan);
+		//AvgNorm = -AvgNorm;
+		obj.mesh[i].AvgBitangent = AvgBiTan;
 
 	}
 }
@@ -1629,4 +1636,37 @@ Texture::Texture()
 Texture::~Texture()
 {
 	delete[] texture;
+}
+
+Skybox::Skybox(SceneObjs& scene)
+{
+	mesh = CreateCube();
+
+	// VAO
+	glGenVertexArrays(1, &VAO);
+
+	// VBO
+	glGenBuffers(1, &VBO);
+
+	//bind VAO
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * mesh.size(), mesh.data(), GL_STATIC_DRAW);
+
+	// Insert the VBO into the VAO
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(MyVertex), 0);
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, Normal)));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(MyVertex), reinterpret_cast<void*>(offsetof(MyVertex, UV)));
+
+	//unbind
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	return;
+
 }

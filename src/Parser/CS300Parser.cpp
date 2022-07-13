@@ -246,6 +246,29 @@ void CS300Parser::LoadDataFromFile(const char * filename)
                 lights.back().pcf = pcf;
             }
         }
+        else if (id == "envMap")
+        {
+            for (size_t i = 0; i < environmentMap.size(); i++)
+            {
+                std::string cubemap;
+                inFile >> cubemap;
+                environmentMap[i] = cubemap;
+            }
+        }
+        else if (id == "reflector")
+        {
+            float ior = ReadFloat(inFile);
+            if (objects.size() > 0)
+            {
+                for (size_t i = 0; i < objects.size() - 1; i++)
+                {
+                    objects[i].reflector = false;
+                }
+
+                objects.back().reflector = true;
+                objects.back().ior       = ior;
+            }
+        }
         else if (Animations::NameToUpdater.find(id) != Animations::NameToUpdater.end())
         {
             glm::vec3 param = ReadVec3(inFile);

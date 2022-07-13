@@ -4,7 +4,7 @@ Reproduction or disclosure of this file or its contents without the prior writte
 consent of DigiPen Institute of Technology is prohibited.
 Project: cs300_i.urkiza_3
 Author: Ibon Urkiza, i.urkiza, 54000320
-Creation date: 28/06/2022
+Creation date: 07/07/2022
 ----------------------------------------------------------------------------------------------------------*/
 
 -How to run the program: The program is in x64. When I first execute it It takes time to load it. I dont know why it happens
@@ -17,13 +17,7 @@ D: move the camera towards the left rotating around the target.
 E: move the camera away from the target.
 Q: move the camera closer to the target.
 N: Toggle normal rendering
-T: Change between rendering modes:
-	• Normal Mapping: Scene with lighting and normal mapping with checkerboard
-          texture
-	• Normal: Geometry normal in camera space as color
-	• Tangent: Geometry tangent in camera space as color
-	• Bitangent: Geometry bitangent in camera space as color
-
+T: Enable disable rendering shadow maps
 F: Toggle face/averaged normal
 M: Toggle wireframe on/off
 O/P: Increase/reduce number of slices (4 is the minimum number of slices)

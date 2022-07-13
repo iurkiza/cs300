@@ -39,6 +39,8 @@ struct Transform
 	glm::vec3 rot = glm::vec3(0.0, 0.0, 0.0);
 	glm::vec3 sca = glm::vec3(0.0, 0.0, 0.0);
 	float     ns = 10.0f;
+	float     ior = 1.33f;
+	bool      reflector = false;
 
 	std::vector<Animations::Anim> anims;
 
@@ -134,6 +136,8 @@ public:
 	static void CalculateCamPosition();
 };
 
+
+
 class SceneObjs
 {
 public:
@@ -145,6 +149,23 @@ public:
 
 	std::vector<Mesh> objects;
 	std::vector<Light> lights;
+
+	Mesh* reflective;
+
+	std::array<std::string, 6> environmentMap;
+
+	
+};
+
+class Skybox
+{
+public:
+	Skybox(SceneObjs& scene);
+
+	GLuint VAO;
+	GLuint VBO;
+
+	std::vector<MyVertex> mesh;
 };
 
 std::vector<MyVertex> CreateCube();
